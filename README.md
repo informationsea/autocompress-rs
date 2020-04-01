@@ -14,3 +14,17 @@ Supported file formats
 * [Z-standard](https://facebook.github.io/zstd/)
 * [LZ4](https://www.lz4.org/)
 * [Brotli](https://github.com/google/brotli) (Cannot suggest format from magic bytes)
+
+Example
+-------
+```rust
+use autocompress::open;
+use std::io::{self, Read};
+
+fn main() -> io::Result<()> {
+  let mut buffer = Vec::new();
+  open("testfiles/plain.txt.xz")?.read_to_end(&mut buffer)?;
+  assert_eq!(buffer, b"ABCDEFG\r\n1234567");
+   Ok(())
+}
+```
