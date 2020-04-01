@@ -1,5 +1,7 @@
 autocompress-rs
 ===============
+[![Build status](https://ci.appveyor.com/api/projects/status/x62tbcohmc7or8f1?svg=true)](https://ci.appveyor.com/project/informationsea/autocompress-rs)
+[![Build Status](https://travis-ci.org/informationsea/autocompress-rs.svg?branch=master)](https://travis-ci.org/informationsea/autocompress-rs)
 
 Automatically select suitable decoder from magic bytes or encoder from file extension.
 

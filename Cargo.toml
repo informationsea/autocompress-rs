@@ -12,6 +12,10 @@ keywords = ["gzip", "zstd", "bzip2", "compress", "decompress"]
 categories = ["compression", "encoding"]
 exclude = ["testfiles"]
 
+[badges]
+appveyor = { repository = "informationsea/autocompress-rs", branch = "master", service = "github" }
+travis-ci = { repository = "informationsea/autocompress-rs", branch = "master" }
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
