@@ -1,0 +1,27 @@
+[package]
+name = "autocompress"
+version = "0.1.0"
+authors = ["Yasunobu Okamura <okamura@informationsea.info>"]
+edition = "2018"
+description = "Automatically select suitable decoder from magic bytes or encoder from file extension."
+readme = "README.md"
+homepage = "https://github.com/informationsea/autocompress-rs"
+repository = "https://github.com/informationsea/autocompress-rs"
+license = "Apache-2.0"
+keywords = ["gzip", "zstd", "bzip2", "compress", "decompress"]
+categories = ["compression", "encoding"]
+exclude = ["testfiles"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+snap = "1"
+zstd = "0.5"
+flate2 = "1"
+bzip2 = "0.3"
+lz4 = "1"
+xz2 = "0.1"
+brotli = "3"
+
+[dev-dependencies]
+temp_testdir = "0.2.3"
