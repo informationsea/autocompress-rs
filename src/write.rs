@@ -74,7 +74,7 @@ enum EncoderInner<W: io::Write> {
     Zlib(flate2::write::ZlibEncoder<W>),
     Bzip2(bzip2::write::BzEncoder<W>),
     Xz(xz2::write::XzEncoder<W>),
-    Zstd(zstd::stream::write::AutoFinishEncoder<W>),
+    Zstd(Option<zstd::stream::write::Encoder<W>>),
     Snappy(snap::write::FrameEncoder<W>),
     Lz4(lz4::Encoder<W>),
     Brotli(brotli::enc::writer::CompressorWriter<W>),
@@ -88,7 +88,7 @@ impl<W: io::Write> io::Write for Encoder<W> {
             EncoderInner::Zlib(x) => x.write(buf),
             EncoderInner::Bzip2(x) => x.write(buf),
             EncoderInner::Xz(x) => x.write(buf),
-            EncoderInner::Zstd(x) => x.write(buf),
+            EncoderInner::Zstd(x) => x.as_mut().unwrap().write(buf),
             EncoderInner::Snappy(x) => x.write(buf),
             EncoderInner::Lz4(x) => x.write(buf),
             EncoderInner::Brotli(x) => x.write(buf),
@@ -102,10 +102,21 @@ impl<W: io::Write> io::Write for Encoder<W> {
             EncoderInner::Zlib(x) => x.flush(),
             EncoderInner::Bzip2(x) => x.flush(),
             EncoderInner::Xz(x) => x.flush(),
-            EncoderInner::Zstd(x) => x.flush(),
+            EncoderInner::Zstd(x) => x.as_mut().unwrap().flush(),
             EncoderInner::Snappy(x) => x.flush(),
             EncoderInner::Lz4(x) => x.flush(),
             EncoderInner::Brotli(x) => x.flush(),
+        }
+    }
+}
+
+impl<W: io::Write> Drop for Encoder<W> {
+    fn drop(&mut self) {
+        if let EncoderInner::Zstd(x) = &mut self.inner {
+            x.take()
+                .unwrap()
+                .finish()
+                .expect("Failed to finish zstd stream");
         }
     }
 }
@@ -148,9 +159,10 @@ impl<W: io::Write> Encoder<W> {
                     writer,
                     compression_level.xz_level(),
                 )),
-                Format::Zstd => EncoderInner::Zstd(
-                    zstd::Encoder::new(writer, compression_level.zstd_level())?.auto_finish(),
-                ),
+                Format::Zstd => EncoderInner::Zstd(Some(zstd::Encoder::new(
+                    writer,
+                    compression_level.zstd_level(),
+                )?)),
                 Format::Snappy => EncoderInner::Snappy(snap::write::FrameEncoder::new(writer)),
                 Format::Lz4 => EncoderInner::Lz4(
                     lz4::EncoderBuilder::new()
