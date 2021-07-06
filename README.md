@@ -1,7 +1,6 @@
 autocompress-rs
 ===============
-[![Build status](https://ci.appveyor.com/api/projects/status/x62tbcohmc7or8f1?svg=true)](https://ci.appveyor.com/project/informationsea/autocompress-rs)
-[![Build Status](https://travis-ci.org/informationsea/autocompress-rs.svg?branch=master)](https://travis-ci.org/informationsea/autocompress-rs)
+[![Build](https://github.com/informationsea/autocompress-rs/actions/workflows/build.yml/badge.svg)](https://github.com/informationsea/autocompress-rs/actions/workflows/build.yml)
 ![GitHub](https://img.shields.io/github/license/informationsea/autocompress-rs)
 ![GitHub top language](https://img.shields.io/github/languages/top/informationsea/autocompress-rs)
 [![Crates.io](https://img.shields.io/crates/v/autocompress)](https://crates.io/crates/autocompress)
