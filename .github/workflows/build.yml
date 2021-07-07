@@ -81,40 +81,40 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: test
-        args: --release --target ${{ matrix.config.target }} --no-default-features --features gzip
+        args: --release --target ${{ matrix.config.target }} --no-default-features --features gzip --tests
     - name: Test snap
       if: ${{ matrix.config.test }}
       uses: actions-rs/cargo@v1
       with:
         command: test
-        args: --release --target ${{ matrix.config.target }} --no-default-features --features snap
+        args: --release --target ${{ matrix.config.target }} --no-default-features --features snap --tests
     - name: Test zstd
       if: ${{ matrix.config.test }}
       uses: actions-rs/cargo@v1
       with:
         command: test
-        args: --release --target ${{ matrix.config.target }} --no-default-features --features zstd
+        args: --release --target ${{ matrix.config.target }} --no-default-features --features zstd --tests
     - name: Test bzip2
       if: ${{ matrix.config.test }}
       uses: actions-rs/cargo@v1
       with:
         command: test
-        args: --release --target ${{ matrix.config.target }} --no-default-features --features bzip2
+        args: --release --target ${{ matrix.config.target }} --no-default-features --features bzip2 --tests
     - name: Test lz4
       if: ${{ matrix.config.test }}
       uses: actions-rs/cargo@v1
       with:
         command: test
-        args: --release --target ${{ matrix.config.target }} --no-default-features --features lz4
+        args: --release --target ${{ matrix.config.target }} --no-default-features --features lz4 --tests
     - name: Test xz
       if: ${{ matrix.config.test }}
       uses: actions-rs/cargo@v1
       with:
         command: test
-        args: --release --target ${{ matrix.config.target }} --no-default-features --features xz
+        args: --release --target ${{ matrix.config.target }} --no-default-features --features xz --tests
     - name: Test brotli
       if: ${{ matrix.config.test }}
       uses: actions-rs/cargo@v1
       with:
         command: test
-        args: --release --target ${{ matrix.config.target }} --no-default-features --features brotli
+        args: --release --target ${{ matrix.config.target }} --no-default-features --features brotli --tests
