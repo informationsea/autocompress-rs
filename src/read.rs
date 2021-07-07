@@ -19,7 +19,7 @@ enum DecoderInner<R: io::Read> {
     #[cfg(feature = "snap")]
     SnappyDecoder(snap::read::FrameDecoder<R>),
     #[cfg(feature = "zstd")]
-    ZstdDecoder(zstd::Decoder<io::BufReader<R>>),
+    ZstdDecoder(zstd::Decoder<'static, io::BufReader<R>>),
     #[cfg(feature = "lz4")]
     Lz4Decoder(lz4::Decoder<R>),
     #[cfg(feature = "brotli")]

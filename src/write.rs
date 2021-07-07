@@ -92,7 +92,7 @@ enum EncoderInner<W: io::Write> {
     #[cfg(feature = "xz2")]
     Xz(xz2::write::XzEncoder<W>),
     #[cfg(feature = "zstd")]
-    Zstd(Option<zstd::stream::write::Encoder<W>>),
+    Zstd(Option<zstd::Encoder<'static, W>>),
     #[cfg(feature = "snap")]
     Snappy(snap::write::FrameEncoder<W>),
     #[cfg(feature = "lz4")]
