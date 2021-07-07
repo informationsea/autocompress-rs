@@ -189,7 +189,7 @@ pub fn open_or_stdin(
 /// # use std::io::{self, Write};
 /// #
 /// # fn main() -> io::Result<()> {
-/// let mut writer = create("create.txt.lz4")?;
+/// let mut writer = create("create.txt.lz4", CompressionLevel::Default)?;
 /// writer.write_all(b"hello, world")?;
 /// # std::fs::remove_file("create.txt.lz4")?;
 /// #  Ok(())
@@ -211,7 +211,7 @@ pub fn create(
 /// #
 /// # fn main() -> io::Result<()> {
 /// # #[cfg(feature = "lz4")] {
-/// let mut writer = create_or_stdout(Some("create.txt.lz4"))?;
+/// let mut writer = create_or_stdout(Some("create.txt.lz4"), CompressionLevel::Default)?;
 /// writer.write_all(b"hello, world")?;
 /// # std::fs::remove_file("create.txt.lz4")?;
 /// # }
