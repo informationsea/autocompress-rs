@@ -18,9 +18,11 @@
 //! use std::io::{self, Read};
 //!
 //! fn main() -> io::Result<()> {
+//! # #[cfg(feature = "xz2")] {
 //!   let mut buffer = Vec::new();
 //!   open("testfiles/plain.txt.xz")?.read_to_end(&mut buffer)?;
 //!   assert_eq!(buffer, b"ABCDEFG\r\n1234567");
+//! # }
 //!   Ok(())
 //! }
 
@@ -37,13 +39,21 @@ pub use write::{CompressionLevel, Encoder};
 /// List of supported file formats
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum Format {
+    #[cfg(feature = "flate2")]
     Gzip,
+    #[cfg(feature = "flate2")]
     Zlib,
+    #[cfg(feature = "bzip2")]
     Bzip2,
+    #[cfg(feature = "xz2")]
     Xz,
+    #[cfg(feature = "snap")]
     Snappy,
+    #[cfg(feature = "zstd")]
     Zstd,
+    #[cfg(feature = "lz4")]
     Lz4,
+    #[cfg(feature = "brotli")]
     Brotli,
     Unknown,
 }
@@ -52,40 +62,60 @@ pub enum Format {
 /// This function does not consume data.
 pub fn suggest_format(mut reader: impl io::BufRead) -> io::Result<Format> {
     let buffer = reader.fill_buf()?;
+    #[cfg(feature = "flate2")]
     if buffer.starts_with(&[0x1f, 0x8b]) {
-        Ok(Format::Gzip)
-    } else if buffer.starts_with(b"BZ") {
-        Ok(Format::Bzip2)
-    } else if buffer.starts_with(b"sNaPpY") {
-        Ok(Format::Snappy)
-    } else if buffer.starts_with(&[0xFD, b'7', b'z', b'X', b'Z', 0x00]) {
-        Ok(Format::Xz)
-    } else if buffer.starts_with(&[0x28, 0xB5, 0x2F, 0xFD]) {
-        Ok(Format::Zstd)
-    } else if buffer.starts_with(&[0x04, 0x22, 0x4D, 0x18]) {
-        Ok(Format::Lz4)
-    } else {
-        Ok(Format::Unknown)
+        return Ok(Format::Gzip);
     }
+    #[cfg(feature = "bzip2")]
+    if buffer.starts_with(b"BZ") {
+        return Ok(Format::Bzip2);
+    }
+    #[cfg(feature = "snap")]
+    if buffer.starts_with(b"sNaPpY") {
+        return Ok(Format::Snappy);
+    }
+    #[cfg(feature = "xz2")]
+    if buffer.starts_with(&[0xFD, b'7', b'z', b'X', b'Z', 0x00]) {
+        return Ok(Format::Xz);
+    }
+    #[cfg(feature = "zstd")]
+    if buffer.starts_with(&[0x28, 0xB5, 0x2F, 0xFD]) {
+        return Ok(Format::Zstd);
+    }
+    #[cfg(feature = "lz4")]
+    if buffer.starts_with(&[0x04, 0x22, 0x4D, 0x18]) {
+        return Ok(Format::Lz4);
+    }
+    Ok(Format::Unknown)
 }
 
 /// Suggest file format from a path extension
 pub fn suggest_format_from_path(path: impl AsRef<path::Path>) -> Format {
+    #[cfg(feature = "brotli")]
     if path.as_ref().extension() == Some(OsStr::new("br")) {
-        Format::Brotli
-    } else if path.as_ref().extension() == Some(OsStr::new("gz")) {
-        Format::Gzip
-    } else if path.as_ref().extension() == Some(OsStr::new("bz2")) {
-        Format::Bzip2
-    } else if path.as_ref().extension() == Some(OsStr::new("xz")) {
-        Format::Xz
-    } else if path.as_ref().extension() == Some(OsStr::new("zst")) {
-        Format::Zstd
-    } else if path.as_ref().extension() == Some(OsStr::new("lz4")) {
-        Format::Lz4
-    } else {
-        Format::Unknown
+        return Format::Brotli;
     }
+    #[cfg(feature = "flate2")]
+    if path.as_ref().extension() == Some(OsStr::new("gz")) {
+        return Format::Gzip;
+    }
+    #[cfg(feature = "bzip2")]
+    if path.as_ref().extension() == Some(OsStr::new("bz2")) {
+        return Format::Bzip2;
+    }
+    #[cfg(feature = "xz2")]
+    if path.as_ref().extension() == Some(OsStr::new("xz")) {
+        return Format::Xz;
+    }
+    #[cfg(feature = "zstd")]
+    if path.as_ref().extension() == Some(OsStr::new("zst")) {
+        return Format::Zstd;
+    }
+    #[cfg(feature = "lz4")]
+    if path.as_ref().extension() == Some(OsStr::new("lz4")) {
+        return Format::Lz4;
+    }
+    Format::Unknown
 }
 
 /// Open new reader from file path. File format is suggested from magic bytes and file extension.
@@ -95,15 +125,18 @@ pub fn suggest_format_from_path(path: impl AsRef<path::Path>) -> Format {
 /// # use std::io::{self, Read};
 /// #
 /// # fn main() -> io::Result<()> {
+/// # #[cfg(feature = "xz2")] {
 /// let mut buffer = Vec::new();
 /// open("testfiles/plain.txt.xz")?.read_to_end(&mut buffer)?;
 /// assert_eq!(buffer, b"ABCDEFG\r\n1234567");
+/// # }
 /// #  Ok(())
 /// # }
 /// ```
 pub fn open(path: impl AsRef<path::Path>) -> io::Result<read::Decoder<io::BufReader<fs::File>>> {
     let mut reader = io::BufReader::new(fs::File::open(&path)?);
     let mut format = suggest_format(&mut reader)?;
+    #[cfg(feature = "brotli")]
     if format == Format::Unknown && path.as_ref().extension() == Some(OsStr::new("br")) {
         format = Format::Brotli;
     }
@@ -117,9 +150,11 @@ pub fn open(path: impl AsRef<path::Path>) -> io::Result<read::Decoder<io::BufRea
 /// # use std::io::{self, Read};
 /// #
 /// # fn main() -> io::Result<()> {
+/// # #[cfg(feature = "xz2")] {
 /// let mut buffer = Vec::new();
 /// open_or_stdin(Some("testfiles/plain.txt.xz"))?.read_to_end(&mut buffer)?;
 /// assert_eq!(buffer, b"ABCDEFG\r\n1234567");
+/// # }
 /// #  Ok(())
 /// # }
 /// ```
@@ -130,6 +165,7 @@ pub fn open_or_stdin(
         let mut reader: io::BufReader<Box<dyn io::Read>> =
             io::BufReader::new(Box::new(fs::File::open(&path)?));
         let mut format = suggest_format(&mut reader)?;
+        #[cfg(feature = "brotli")]
         if format == Format::Unknown && path.as_ref().extension() == Some(OsStr::new("br")) {
             format = Format::Brotli;
         }
@@ -167,9 +203,11 @@ pub fn create(path: impl AsRef<path::Path>) -> io::Result<write::Encoder<fs::Fil
 /// # use std::io::{self, Write};
 /// #
 /// # fn main() -> io::Result<()> {
+/// # #[cfg(feature = "lz4")] {
 /// let mut writer = create_or_stdout(Some("create.txt.lz4"))?;
 /// writer.write_all(b"hello, world")?;
 /// # std::fs::remove_file("create.txt.lz4")?;
+/// # }
 /// #  Ok(())
 /// # }
 /// ```
@@ -192,22 +230,27 @@ mod tests {
             suggest_format(&include_bytes!("../testfiles/plain.txt")[..]).unwrap(),
             Format::Unknown
         );
+        #[cfg(feature = "flate2")]
         assert_eq!(
             suggest_format(&include_bytes!("../testfiles/plain.txt.gz")[..]).unwrap(),
             Format::Gzip
         );
+        #[cfg(feature = "bzip2")]
         assert_eq!(
             suggest_format(&include_bytes!("../testfiles/plain.txt.bz2")[..]).unwrap(),
             Format::Bzip2
         );
+        #[cfg(feature = "xz2")]
         assert_eq!(
             suggest_format(&include_bytes!("../testfiles/plain.txt.xz")[..]).unwrap(),
             Format::Xz
         );
+        #[cfg(feature = "zstd")]
         assert_eq!(
             suggest_format(&include_bytes!("../testfiles/plain.txt.zst")[..]).unwrap(),
             Format::Zstd
         );
+        #[cfg(feature = "lz4")]
         assert_eq!(
             suggest_format(&include_bytes!("../testfiles/plain.txt.lz4")[..]).unwrap(),
             Format::Lz4
@@ -223,23 +266,41 @@ mod tests {
         assert_eq!(buffer, expected_bytes);
 
         buffer.clear();
-        open("testfiles/plain.txt.br")?.read_to_end(&mut buffer)?;
-        assert_eq!(buffer, expected_bytes);
+        #[cfg(feature = "brotli")]
+        {
+            open("testfiles/plain.txt.br")?.read_to_end(&mut buffer)?;
+            assert_eq!(buffer, expected_bytes);
+        }
         buffer.clear();
-        open("testfiles/plain.txt.bz2")?.read_to_end(&mut buffer)?;
-        assert_eq!(buffer, expected_bytes);
+        #[cfg(feature = "bzip2")]
+        {
+            open("testfiles/plain.txt.bz2")?.read_to_end(&mut buffer)?;
+            assert_eq!(buffer, expected_bytes);
+        }
         buffer.clear();
-        open("testfiles/plain.txt.gz")?.read_to_end(&mut buffer)?;
-        assert_eq!(buffer, expected_bytes);
+        #[cfg(feature = "flate2")]
+        {
+            open("testfiles/plain.txt.gz")?.read_to_end(&mut buffer)?;
+            assert_eq!(buffer, expected_bytes);
+        }
         buffer.clear();
-        open("testfiles/plain.txt.lz4")?.read_to_end(&mut buffer)?;
-        assert_eq!(buffer, expected_bytes);
+        #[cfg(feature = "lz4")]
+        {
+            open("testfiles/plain.txt.lz4")?.read_to_end(&mut buffer)?;
+            assert_eq!(buffer, expected_bytes);
+        }
         buffer.clear();
-        open("testfiles/plain.txt.xz")?.read_to_end(&mut buffer)?;
-        assert_eq!(buffer, expected_bytes);
+        #[cfg(feature = "xz2")]
+        {
+            open("testfiles/plain.txt.xz")?.read_to_end(&mut buffer)?;
+            assert_eq!(buffer, expected_bytes);
+        }
         buffer.clear();
-        open("testfiles/plain.txt.zst")?.read_to_end(&mut buffer)?;
-        assert_eq!(buffer, expected_bytes);
+        #[cfg(feature = "zstd")]
+        {
+            open("testfiles/plain.txt.zst")?.read_to_end(&mut buffer)?;
+            assert_eq!(buffer, expected_bytes);
+        }
         Ok(())
     }
 
@@ -252,87 +313,154 @@ mod tests {
         assert_eq!(buffer, expected_bytes);
 
         buffer.clear();
-        open_or_stdin(Some("testfiles/plain.txt.br"))?.read_to_end(&mut buffer)?;
-        assert_eq!(buffer, expected_bytes);
+        #[cfg(feature = "brotli")]
+        {
+            open_or_stdin(Some("testfiles/plain.txt.br"))?.read_to_end(&mut buffer)?;
+            assert_eq!(buffer, expected_bytes);
+        }
         buffer.clear();
-        open_or_stdin(Some("testfiles/plain.txt.bz2"))?.read_to_end(&mut buffer)?;
-        assert_eq!(buffer, expected_bytes);
+        #[cfg(feature = "bzip2")]
+        {
+            open_or_stdin(Some("testfiles/plain.txt.bz2"))?.read_to_end(&mut buffer)?;
+            assert_eq!(buffer, expected_bytes);
+        }
         buffer.clear();
-        open_or_stdin(Some("testfiles/plain.txt.gz"))?.read_to_end(&mut buffer)?;
-        assert_eq!(buffer, expected_bytes);
+        #[cfg(feature = "flate2")]
+        {
+            open_or_stdin(Some("testfiles/plain.txt.gz"))?.read_to_end(&mut buffer)?;
+            assert_eq!(buffer, expected_bytes);
+        }
         buffer.clear();
-        open_or_stdin(Some("testfiles/plain.txt.lz4"))?.read_to_end(&mut buffer)?;
-        assert_eq!(buffer, expected_bytes);
+        #[cfg(feature = "lz4")]
+        {
+            open_or_stdin(Some("testfiles/plain.txt.lz4"))?.read_to_end(&mut buffer)?;
+            assert_eq!(buffer, expected_bytes);
+        }
         buffer.clear();
-        open_or_stdin(Some("testfiles/plain.txt.xz"))?.read_to_end(&mut buffer)?;
-        assert_eq!(buffer, expected_bytes);
+        #[cfg(feature = "xz2")]
+        {
+            open_or_stdin(Some("testfiles/plain.txt.xz"))?.read_to_end(&mut buffer)?;
+            assert_eq!(buffer, expected_bytes);
+        }
         buffer.clear();
-        open_or_stdin(Some("testfiles/plain.txt.zst"))?.read_to_end(&mut buffer)?;
-        assert_eq!(buffer, expected_bytes);
+        #[cfg(feature = "zstd")]
+        {
+            open_or_stdin(Some("testfiles/plain.txt.zst"))?.read_to_end(&mut buffer)?;
+            assert_eq!(buffer, expected_bytes);
+        }
         Ok(())
     }
 
     use temp_testdir::TempDir;
 
+    #[cfg(feature = "flate2")]
     #[test]
-    fn test_write() -> io::Result<()> {
+    fn test_write_flate2() -> io::Result<()> {
         let expected_bytes = include_bytes!("../testfiles/plain.txt");
         let temp = TempDir::default();
-        let mut buffer = Vec::new();
+        let mut buffer = Vec::<u8>::new();
 
-        {
-            let mut writer = create(temp.join("plain.txt.gz"))?;
-            writer.write_all(&expected_bytes[..])?;
-        }
+        let mut writer = create(temp.join("plain.txt.gz"))?;
+        writer.write_all(&expected_bytes[..])?;
+        std::mem::drop(writer);
         Decoder::new(fs::File::open(temp.join("plain.txt.gz"))?, Format::Gzip)?
             .read_to_end(&mut buffer)?;
         assert_eq!(buffer, expected_bytes);
+        Ok(())
+    }
 
-        buffer.clear();
-        {
-            let mut writer = create(temp.join("plain.txt.br"))?;
-            writer.write_all(&expected_bytes[..])?;
-        }
-        Decoder::new(fs::File::open(temp.join("plain.txt.br"))?, Format::Brotli)?
-            .read_to_end(&mut buffer)?;
-        assert_eq!(buffer, expected_bytes);
+    #[cfg(feature = "xz2")]
+    #[test]
+    fn test_write_xz() -> io::Result<()> {
+        let expected_bytes = include_bytes!("../testfiles/plain.txt");
+        let temp = TempDir::default();
+        let mut buffer = Vec::<u8>::new();
 
-        buffer.clear();
-        {
-            let mut writer = create(temp.join("plain.txt.bz2"))?;
-            writer.write_all(&expected_bytes[..])?;
-        }
-        Decoder::new(fs::File::open(temp.join("plain.txt.bz2"))?, Format::Bzip2)?
-            .read_to_end(&mut buffer)?;
-        assert_eq!(buffer, expected_bytes);
-
-        buffer.clear();
-        {
-            let mut writer = create(temp.join("plain.txt.xz"))?;
-            writer.write_all(&expected_bytes[..])?;
-        }
+        let mut writer = create(temp.join("plain.txt.xz"))?;
+        writer.write_all(&expected_bytes[..])?;
+        std::mem::drop(writer);
         Decoder::new(fs::File::open(temp.join("plain.txt.xz"))?, Format::Xz)?
             .read_to_end(&mut buffer)?;
         assert_eq!(buffer, expected_bytes);
+        Ok(())
+    }
 
-        buffer.clear();
-        {
-            let mut writer = create(temp.join("plain.txt.zst"))?;
-            writer.write_all(&expected_bytes[..])?;
-        }
+    #[cfg(feature = "bzip2")]
+    #[test]
+    fn test_write_bzip2() -> io::Result<()> {
+        let expected_bytes = include_bytes!("../testfiles/plain.txt");
+        let temp = TempDir::default();
+        let mut buffer = Vec::<u8>::new();
+
+        let mut writer = create(temp.join("plain.txt.bz2"))?;
+        writer.write_all(&expected_bytes[..])?;
+        std::mem::drop(writer);
+        Decoder::new(fs::File::open(temp.join("plain.txt.bz2"))?, Format::Bzip2)?
+            .read_to_end(&mut buffer)?;
+        assert_eq!(buffer, expected_bytes);
+        Ok(())
+    }
+
+    #[cfg(feature = "zstd")]
+    #[test]
+    fn test_write_zstd() -> io::Result<()> {
+        let expected_bytes = include_bytes!("../testfiles/plain.txt");
+        let temp = TempDir::default();
+        let mut buffer = Vec::<u8>::new();
+
+        let mut writer = create(temp.join("plain.txt.zst"))?;
+        writer.write_all(&expected_bytes[..])?;
+        std::mem::drop(writer);
         Decoder::new(fs::File::open(temp.join("plain.txt.zst"))?, Format::Zstd)?
             .read_to_end(&mut buffer)?;
         assert_eq!(buffer, expected_bytes);
+        Ok(())
+    }
 
-        buffer.clear();
-        {
-            let mut writer = create(temp.join("plain.txt.lz4"))?;
-            writer.write_all(&expected_bytes[..])?;
-        }
+    #[cfg(feature = "brotli")]
+    #[test]
+    fn test_write_brotli() -> io::Result<()> {
+        let expected_bytes = include_bytes!("../testfiles/plain.txt");
+        let temp = TempDir::default();
+        let mut buffer = Vec::<u8>::new();
+
+        let mut writer = create(temp.join("plain.txt.br"))?;
+        writer.write_all(&expected_bytes[..])?;
+        std::mem::drop(writer);
+        Decoder::new(fs::File::open(temp.join("plain.txt.br"))?, Format::Brotli)?
+            .read_to_end(&mut buffer)?;
+        assert_eq!(buffer, expected_bytes);
+        Ok(())
+    }
+
+    #[cfg(feature = "lz4")]
+    #[test]
+    fn test_write_lz4() -> io::Result<()> {
+        let expected_bytes = include_bytes!("../testfiles/plain.txt");
+        let temp = TempDir::default();
+        let mut buffer = Vec::<u8>::new();
+
+        let mut writer = create(temp.join("plain.txt.lz4"))?;
+        writer.write_all(&expected_bytes[..])?;
+        std::mem::drop(writer);
         Decoder::new(fs::File::open(temp.join("plain.txt.lz4"))?, Format::Lz4)?
             .read_to_end(&mut buffer)?;
         assert_eq!(buffer, expected_bytes);
+        Ok(())
+    }
 
+    #[test]
+    fn test_write_plain() -> io::Result<()> {
+        let expected_bytes = include_bytes!("../testfiles/plain.txt");
+        let temp = TempDir::default();
+        let mut buffer = Vec::<u8>::new();
+
+        let mut writer = create(temp.join("plain.txt"))?;
+        writer.write_all(&expected_bytes[..])?;
+        std::mem::drop(writer);
+        Decoder::new(fs::File::open(temp.join("plain.txt"))?, Format::Unknown)?
+            .read_to_end(&mut buffer)?;
+        assert_eq!(buffer, expected_bytes);
         Ok(())
     }
 }
