@@ -195,9 +195,12 @@ pub fn open_or_stdin(
 /// #  Ok(())
 /// # }
 /// ```
-pub fn create(path: impl AsRef<path::Path>) -> io::Result<write::Encoder<fs::File>> {
+pub fn create(
+    path: impl AsRef<path::Path>,
+    level: CompressionLevel,
+) -> io::Result<write::Encoder<fs::File>> {
     let format = suggest_format_from_path(&path);
-    Encoder::new(fs::File::create(path)?, format, CompressionLevel::Default)
+    Encoder::new(fs::File::create(path)?, format, level)
 }
 
 /// Create new writer from a file path. If a file path is `None`, standard output is used. File format is suggested from file extension.
@@ -215,9 +218,12 @@ pub fn create(path: impl AsRef<path::Path>) -> io::Result<write::Encoder<fs::Fil
 /// #  Ok(())
 /// # }
 /// ```
-pub fn create_or_stdout(path: Option<impl AsRef<path::Path>>) -> io::Result<Box<dyn Write>> {
+pub fn create_or_stdout(
+    path: Option<impl AsRef<path::Path>>,
+    level: CompressionLevel,
+) -> io::Result<Box<dyn Write + Send>> {
     if let Some(path) = path {
-        Ok(Box::new(create(path)?))
+        Ok(Box::new(create(path, level)?))
     } else {
         Ok(Box::new(io::stdout()))
     }
@@ -364,7 +370,7 @@ mod tests {
         let temp = TempDir::default();
         let mut buffer = Vec::<u8>::new();
 
-        let mut writer = create(temp.join("plain.txt.gz"))?;
+        let mut writer = create(temp.join("plain.txt.gz"), CompressionLevel::Default)?;
         writer.write_all(&expected_bytes[..])?;
         std::mem::drop(writer);
         Decoder::new(fs::File::open(temp.join("plain.txt.gz"))?, Format::Gzip)?
@@ -380,7 +386,7 @@ mod tests {
         let temp = TempDir::default();
         let mut buffer = Vec::<u8>::new();
 
-        let mut writer = create(temp.join("plain.txt.xz"))?;
+        let mut writer = create(temp.join("plain.txt.xz"), CompressionLevel::Default)?;
         writer.write_all(&expected_bytes[..])?;
         std::mem::drop(writer);
         Decoder::new(fs::File::open(temp.join("plain.txt.xz"))?, Format::Xz)?
@@ -396,7 +402,7 @@ mod tests {
         let temp = TempDir::default();
         let mut buffer = Vec::<u8>::new();
 
-        let mut writer = create(temp.join("plain.txt.bz2"))?;
+        let mut writer = create(temp.join("plain.txt.bz2"), CompressionLevel::Default)?;
         writer.write_all(&expected_bytes[..])?;
         std::mem::drop(writer);
         Decoder::new(fs::File::open(temp.join("plain.txt.bz2"))?, Format::Bzip2)?
@@ -412,7 +418,7 @@ mod tests {
         let temp = TempDir::default();
         let mut buffer = Vec::<u8>::new();
 
-        let mut writer = create(temp.join("plain.txt.zst"))?;
+        let mut writer = create(temp.join("plain.txt.zst"), CompressionLevel::Default)?;
         writer.write_all(&expected_bytes[..])?;
         std::mem::drop(writer);
         Decoder::new(fs::File::open(temp.join("plain.txt.zst"))?, Format::Zstd)?
@@ -428,7 +434,7 @@ mod tests {
         let temp = TempDir::default();
         let mut buffer = Vec::<u8>::new();
 
-        let mut writer = create(temp.join("plain.txt.br"))?;
+        let mut writer = create(temp.join("plain.txt.br"), CompressionLevel::Default)?;
         writer.write_all(&expected_bytes[..])?;
         std::mem::drop(writer);
         Decoder::new(fs::File::open(temp.join("plain.txt.br"))?, Format::Brotli)?
@@ -444,7 +450,7 @@ mod tests {
         let temp = TempDir::default();
         let mut buffer = Vec::<u8>::new();
 
-        let mut writer = create(temp.join("plain.txt.lz4"))?;
+        let mut writer = create(temp.join("plain.txt.lz4"), CompressionLevel::Default)?;
         writer.write_all(&expected_bytes[..])?;
         std::mem::drop(writer);
         Decoder::new(fs::File::open(temp.join("plain.txt.lz4"))?, Format::Lz4)?
@@ -459,7 +465,7 @@ mod tests {
         let temp = TempDir::default();
         let mut buffer = Vec::<u8>::new();
 
-        let mut writer = create(temp.join("plain.txt"))?;
+        let mut writer = create(temp.join("plain.txt"), CompressionLevel::Default)?;
         writer.write_all(&expected_bytes[..])?;
         std::mem::drop(writer);
         Decoder::new(fs::File::open(temp.join("plain.txt"))?, Format::Unknown)?

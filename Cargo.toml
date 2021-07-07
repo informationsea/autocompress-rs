@@ -36,3 +36,5 @@ crossbeam-channel = {version = "0.5", optional = true}
 
 [dev-dependencies]
 temp_testdir = "0.2.3"
+clap = "^2.33.3"
+rand = "0.8.0"
