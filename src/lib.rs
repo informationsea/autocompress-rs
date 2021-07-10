@@ -31,7 +31,7 @@ mod write;
 
 /// Read or write file in I/O thread
 #[cfg(feature = "thread")]
-pub mod threadio;
+pub mod iothread;
 
 pub use read::Decoder;
 use std::ffi::OsStr;

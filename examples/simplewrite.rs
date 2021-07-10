@@ -74,7 +74,7 @@ fn main() -> io::Result<()> {
     let mut writer = autocompress::create(matches.value_of("output").unwrap(), compression_level)?;
 
     if thread_num > 0 {
-        let threadio = autocompress::threadio::IoThread::new(thread_num);
+        let threadio = autocompress::iothread::IoThread::new(thread_num);
         let mut writer = threadio.add_writer(writer);
         write_data(&mut writer, bytes, random_generate)?;
     } else {
