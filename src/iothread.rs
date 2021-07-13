@@ -274,11 +274,9 @@ impl<'a, R: io::Read + Send> Read for ThreadReader<'a, R> {
 
 impl<'a, R: io::Read + Send> BufRead for ThreadReader<'a, R> {
     fn fill_buf(&mut self) -> io::Result<&[u8]> {
-        if !self.buffer.is_empty() {
-            if self.buffer[0].1 == self.current_point {
-                self.processed_buffer.push(self.buffer.remove(0).0);
-                self.current_point = 0;
-            }
+        if !self.buffer.is_empty() && self.buffer[0].1 == self.current_point {
+            self.processed_buffer.push(self.buffer.remove(0).0);
+            self.current_point = 0;
         }
         self.recv_result(true)?;
         Ok(&self.buffer[0].0[self.current_point..self.buffer[0].1])

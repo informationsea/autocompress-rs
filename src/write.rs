@@ -11,9 +11,9 @@ pub enum CompressionLevel {
 }
 
 #[cfg(feature = "flate2")]
-impl Into<flate2::Compression> for CompressionLevel {
-    fn into(self) -> flate2::Compression {
-        match self {
+impl From<CompressionLevel> for flate2::Compression {
+    fn from(s: CompressionLevel) -> flate2::Compression {
+        match s {
             CompressionLevel::Fast => flate2::Compression::fast(),
             CompressionLevel::Default => flate2::Compression::default(),
             CompressionLevel::Best => flate2::Compression::best(),
@@ -23,9 +23,9 @@ impl Into<flate2::Compression> for CompressionLevel {
 }
 
 #[cfg(feature = "bzip2")]
-impl Into<bzip2::Compression> for CompressionLevel {
-    fn into(self) -> bzip2::Compression {
-        match self {
+impl From<CompressionLevel> for bzip2::Compression {
+    fn from(s: CompressionLevel) -> bzip2::Compression {
+        match s {
             CompressionLevel::Fast => bzip2::Compression::fast(),
             CompressionLevel::Default => bzip2::Compression::default(),
             CompressionLevel::Best => bzip2::Compression::best(),
