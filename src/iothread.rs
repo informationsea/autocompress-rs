@@ -1,3 +1,25 @@
+//! Run compression, decompression and other IO tasks in separated threads.
+//!
+//! Example:
+//! ```
+//! # #[cfg(feature = "thread")] {
+//! use autocompress::{iothread::IoThread, open, create, CompressionLevel};
+//! use std::io::{prelude::*, self};
+//! # fn main() -> io::Result<()> {
+//!
+//! let nothread_reader = open("testfiles/plain.txt")?;
+//! let nothread_writer = create("target/plain.txt.xz", CompressionLevel::Default)?;
+//! let thread_pool = IoThread::new(2);
+//! let mut threaded_reader = thread_pool.add_reader(nothread_reader)?;
+//! let mut threaded_writer = thread_pool.add_writer(nothread_writer);
+//! let mut buffer = Vec::new();
+//! threaded_reader.read_to_end(&mut buffer)?;
+//! assert_eq!(buffer, b"ABCDEFG\r\n1234567");
+//! threaded_writer.write_all(b"ABCDEFG\r\n1234567")?;
+//! # Ok(())
+//! # }
+//! # }
+//! ```
 use std::io::{self, prelude::*};
 use std::thread;
 
@@ -28,25 +50,7 @@ enum IoRequest {
     Finish,
 }
 
-/// Run compress, decompress and other I/O tasks in separated threads.
-///
-/// Example:
-/// ```
-/// # #[cfg(feature = "thread")] {
-/// use autocompress::{iothread::IoThread, open};
-/// use std::io::{prelude::*, self};
-/// # fn main() -> io::Result<()> {
-///
-/// let nothread_reader = open("testfiles/plain.txt")?;
-/// let thread_pool = IoThread::new(2);
-/// let mut threaded_reader = thread_pool.add_reader(nothread_reader)?;
-/// let mut buffer = Vec::new();
-/// threaded_reader.read_to_end(&mut buffer)?;
-/// assert_eq!(buffer, b"ABCDEFG\r\n1234567");
-/// # Ok(())
-/// # }
-/// # }
-/// ```
+/// Thread pool for I/O tasks
 pub struct IoThread {
     thread_pool: Vec<thread::JoinHandle<()>>,
     sender: crossbeam_channel::Sender<IoRequest>,
@@ -133,14 +137,14 @@ impl Drop for IoThread {
         for _ in self.thread_pool.iter() {
             let send_result = self.sender.send(IoRequest::Finish);
             if let Err(e) = send_result {
-                eprintln!("Send finish request error: {}", e);
+                //eprintln!("Send finish request error: {}", e);
                 log::error!("Send finish request error: {}", e);
             }
         }
     }
 }
 
-/// Threaded reader
+/// Threaded reader. Creates with [`IoThread::add_reader`].
 pub struct ThreadReader<'a, R: io::Read + Send> {
     sender: &'a crossbeam_channel::Sender<IoRequest>,
     result_receiver: crossbeam_channel::Receiver<IoResult>,
@@ -289,7 +293,7 @@ impl<'a, R: io::Read + Send> BufRead for ThreadReader<'a, R> {
     }
 }
 
-/// Threaded writer
+/// Threaded writer. Creates with [`IoThread::add_writer`].
 pub struct ThreadWriter<'a, W: io::Write + Send> {
     sender: &'a crossbeam_channel::Sender<IoRequest>,
     result_receiver: crossbeam_channel::Receiver<IoResult>,

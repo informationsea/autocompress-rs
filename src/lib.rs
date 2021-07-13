@@ -1,4 +1,5 @@
 //! Automatically select suitable decoder from magic bytes or encoder from file extension.
+//! This library also provides I/O thread pool to perform decompression and compression in background threads.
 //!
 //! Supported file formats
 //! ---------------------
@@ -12,7 +13,7 @@
 //! * [LZ4](https://www.lz4.org/)
 //! * [Brotli](https://github.com/google/brotli) (Cannot suggest format from magic bytes)
 //!
-//! Example
+//! ## Example
 //! ```
 //! use autocompress::open;
 //! use std::io::{self, Read};
@@ -25,11 +26,30 @@
 //! # }
 //!   Ok(())
 //! }
+//! ```
+//!
+//! ## I/O thread example
+//! ```
+//! # #[cfg(feature = "thread")] {
+//! use autocompress::{iothread::IoThread, open, create, CompressionLevel};
+//!
+//! # use std::io::{prelude::*, self};
+//! # fn main() -> io::Result<()> {
+//! let thread_pool = IoThread::new(2);
+//! let mut threaded_reader = thread_pool.add_reader(open("testfiles/plain.txt.xz")?)?;
+//! let mut threaded_writer = thread_pool.add_writer(create("target/plain.txt.xz", CompressionLevel::Default)?);
+//! let mut buffer = Vec::new();
+//! threaded_reader.read_to_end(&mut buffer)?;
+//! assert_eq!(buffer, b"ABCDEFG\r\n1234567");
+//! threaded_writer.write_all(b"ABCDEFG\r\n1234567")?;
+//! # Ok(())
+//! # }
+//! # }
+//! ```
 
 mod read;
 mod write;
 
-/// Read or write file in I/O thread
 #[cfg(feature = "thread")]
 pub mod iothread;
 
