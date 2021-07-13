@@ -82,6 +82,18 @@ jobs:
       with:
         command: test
         args: --release --target ${{ matrix.config.target }} --no-default-features --features gzip --tests
+    - name: Test zlib
+      if: ${{ matrix.config.test }}
+      uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: --release --target ${{ matrix.config.target }} --no-default-features --features zlib --tests
+    - name: Test miniz-sys
+      if: ${{ matrix.config.test }}
+      uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: --release --target ${{ matrix.config.target }} --no-default-features --features miniz-sys --tests
     - name: Test snap
       if: ${{ matrix.config.test }}
       uses: actions-rs/cargo@v1

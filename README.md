@@ -7,6 +7,7 @@ autocompress-rs
 [![Docs.rs](https://docs.rs/autocompress/badge.svg)](https://docs.rs/autocompress)
 
 Automatically select suitable decoder from magic bytes or encoder from file extension.
+This library also provides I/O thread pool to perform decompression and compression in background threads.
 
 Supported file formats
 ---------------------
@@ -19,6 +20,19 @@ Supported file formats
 * [Z-standard](https://facebook.github.io/zstd/)
 * [LZ4](https://www.lz4.org/)
 * [Brotli](https://github.com/google/brotli) (Cannot suggest format from magic bytes)
+
+Feature flags
+-------------
+
+* `default`, `full`: Enable all features.
+* `gzip`: Enable gzip
+* `snap`: Enable snappy
+* `zstd`: Enable Z-standard
+* `bzip2`: Enable bzip2
+* `lz4`: Enable LZ4
+* `xz`: Enable XZ
+* `brotli`: Enable Brotli
+* `thread`: Enable threaded I/O
 
 Example
 -------
@@ -33,3 +47,19 @@ fn main() -> io::Result<()> {
   Ok(())
 }
 ```
+I/O thread example
+------------------
+ ```rust
+use autocompress::{iothread::IoThread, open, create, CompressionLevel};
+use std::io::{prelude::*, self};
+fn main() -> io::Result<()> {
+  let thread_pool = IoThread::new(2);
+  let mut threaded_reader = thread_pool.add_reader(open("testfiles/plain.txt.xz")?)?;
+  let mut threaded_writer = thread_pool.add_writer(create("target/plain.txt.xz", CompressionLevel::Default)?);
+  let mut buffer = Vec::new();
+  threaded_reader.read_to_end(&mut buffer)?;
+  assert_eq!(buffer, b"ABCDEFG\r\n1234567");
+  threaded_writer.write_all(b"ABCDEFG\r\n1234567")?;
+  Ok(())
+}
+ ```
