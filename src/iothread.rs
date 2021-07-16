@@ -247,12 +247,16 @@ impl<'a, R: io::Read + Send> Drop for ThreadReader<'a, R> {
 
 impl<'a, R: io::Read + Send> Read for ThreadReader<'a, R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        if !self.buffer.is_empty() && self.buffer[0].1 == self.current_point {
+            self.processed_buffer.push(self.buffer.remove(0).0);
+            self.current_point = 0;
+        }
         self.recv_result(true)?;
         if self.eof && self.buffer.is_empty() {
             return Ok(0);
         }
         let remain_bytes = self.buffer[0].1 - self.current_point;
-        log::debug!(
+        log::trace!(
             "read {} {} {} {}",
             self.buffer[0].1,
             self.current_point,
@@ -508,6 +512,31 @@ mod test {
         assert_eq!(buffer1[0..3], expected_bytes[0..3]);
         assert_eq!(reader1.read(&mut buffer1)?, 3);
         assert_eq!(buffer1[0..3], expected_bytes[3..6]);
+
+        let mut buffer2 = Vec::new();
+        reader2.read_to_end(&mut buffer2)?;
+        assert_eq!(buffer2, expected_bytes);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_read3() -> io::Result<()> {
+        //std::env::set_var("RUST_LOG", "debug");
+        //pretty_env_logger::init();
+        let iothread = IoThread::new(1);
+        let expected_bytes = include_bytes!("../testfiles/plain.txt");
+        let mut reader1 =
+            iothread.add_reader_with_capacity(fs::File::open("./testfiles/plain.txt")?, 9)?;
+        let mut reader2 =
+            iothread.add_reader_with_capacity(fs::File::open("./testfiles/plain.txt")?, 9)?;
+
+        let mut buffer2 = Vec::new();
+        reader1.read_until(b'\n', &mut buffer2)?;
+        assert_eq!(buffer2, expected_bytes[0..9]);
+        let mut buffer1 = vec![0u8; 9];
+        assert_eq!(reader1.read(&mut buffer1)?, 7);
+        assert_eq!(buffer1[0..7], expected_bytes[9..16]);
 
         let mut buffer2 = Vec::new();
         reader2.read_to_end(&mut buffer2)?;
