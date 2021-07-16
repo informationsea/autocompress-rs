@@ -72,7 +72,8 @@ impl IoThread {
         }
     }
 
-    /// Register new writer and create threaded writer.
+    /// Register new writer and create threaded writer. Since each write requests cause inter thread communication,
+    /// wrapping with `std::io::BufWriter` is recommended.
     pub fn add_writer<W: io::Write + Send + 'static>(&self, writer: W) -> ThreadWriter<W> {
         let (result_sender, result_receiver) = crossbeam_channel::bounded(2);
 
@@ -392,7 +393,7 @@ fn worker_thread(thread_index: usize, receiver: crossbeam_channel::Receiver<IoRe
                     break;
                 }
                 IoRequest::Write(mut writer, data, sender) => {
-                    log::debug!("write request: {}", thread_index);
+                    log::trace!("write request: {}", thread_index);
                     let result = writer.write_all(&data);
                     if let Err(e) = sender.send(IoResult::Write(writer, data, result)) {
                         log::debug!("IO Thread Send Error (write): {}", e);
@@ -400,7 +401,7 @@ fn worker_thread(thread_index: usize, receiver: crossbeam_channel::Receiver<IoRe
                     }
                 }
                 IoRequest::Flush(mut writer, sender) => {
-                    log::debug!("flush request: {}", thread_index);
+                    log::trace!("flush request: {}", thread_index);
                     let result = writer.flush();
                     if let Err(e) = sender.send(IoResult::Flush(writer, result)) {
                         log::debug!("IO Thread Send Error (flush): {}", e);
@@ -408,7 +409,7 @@ fn worker_thread(thread_index: usize, receiver: crossbeam_channel::Receiver<IoRe
                     }
                 }
                 IoRequest::Read(mut reader, mut data, sender) => {
-                    log::debug!("read request: {}", thread_index);
+                    log::trace!("read request: {}", thread_index);
                     let result = reader.read(&mut data);
                     if let Err(e) = sender.send(IoResult::Read(reader, data, result)) {
                         log::debug!("IO Thread Send Error (read): {}", e);
