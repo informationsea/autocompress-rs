@@ -54,8 +54,8 @@ use autocompress::{iothread::IoThread, open, create, CompressionLevel};
 use std::io::{prelude::*, self};
 fn main() -> io::Result<()> {
   let thread_pool = IoThread::new(2);
-  let mut threaded_reader = thread_pool.add_reader(open("testfiles/plain.txt.xz")?)?;
-  let mut threaded_writer = thread_pool.add_writer(create("target/plain.txt.xz", CompressionLevel::Default)?);
+  let mut threaded_reader = thread_pool.open("testfiles/plain.txt.xz")?;
+  let mut threaded_writer = thread_pool.create("target/plain.txt.xz", CompressionLevel::Default)?;
   let mut buffer = Vec::new();
   threaded_reader.read_to_end(&mut buffer)?;
   assert_eq!(buffer, b"ABCDEFG\r\n1234567");

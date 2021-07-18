@@ -275,6 +275,14 @@ pub struct BlockCompress {
 }
 
 impl BlockCompress {
+    pub fn plain() -> Self {
+        BlockCompress {
+            compress_block: plain_compress_block,
+            block_size: 1024 * 128,
+            compression_level: CompressionLevel::Default,
+        }
+    }
+
     #[cfg(feature = "flate2")]
     pub fn gzip(compression_level: CompressionLevel) -> Self {
         BlockCompress {
@@ -310,6 +318,10 @@ impl BlockCompress {
             compression_level,
         }
     }
+}
+
+fn plain_compress_block(block: &[u8], result: &mut Vec<u8>, _compression_level: CompressionLevel) {
+    result.extend_from_slice(block)
 }
 
 #[cfg(feature = "flate2")]

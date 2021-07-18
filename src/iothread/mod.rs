@@ -1,4 +1,5 @@
 //! Run compression, decompression and other IO tasks in separated threads.
+//! Please read [`IoThread`] to learn more.
 //!
 //! Example:
 //! ```
@@ -23,7 +24,9 @@
 mod block;
 pub use block::{BlockCompress, BlockWriter};
 
+use super::{CompressionLevel, Format};
 use std::io::{self, prelude::*};
+use std::path::Path;
 use std::thread;
 
 const READER_BUFFER_SIZE: usize = 1000000;
@@ -83,6 +86,88 @@ impl IoThread {
         }
     }
 
+    /// Open file with multi threaded reader.
+    ///
+    /// Example:
+    /// ```rust
+    /// use autocompress::iothread::IoThread;
+    /// # use std::io::{Read, self};
+    /// # fn main() -> std::io::Result<()> {
+    /// let iothread = IoThread::new(2);
+    /// let mut reader = iothread.open("testfiles/plain.txt.gz")?;
+    /// let mut buffer = Vec::new();
+    /// reader.read_to_end(&mut buffer)?;
+    /// assert_eq!(buffer, b"ABCDEFG\r\n1234567");
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn open<P: AsRef<Path>>(&self, path: P) -> io::Result<ThreadReader<impl Read>> {
+        let reader = super::open(path)?;
+        self.add_reader(reader)
+    }
+
+    /// Creates file with multi threaded writer.
+    ///
+    /// Example:
+    /// ```rust
+    /// use autocompress::{iothread::IoThread, CompressionLevel};
+    /// # use std::io::{Write, self};
+    /// # fn main() -> std::io::Result<()> {
+    /// let iothread = IoThread::new(2);
+    /// let mut writer = iothread.create("target/block-writer1.txt.gz", CompressionLevel::Default)?;
+    /// writer.write_all(b"ABCDEFG")?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn create<P: AsRef<Path>>(
+        &self,
+        path: P,
+        level: CompressionLevel,
+    ) -> io::Result<BlockWriter<impl Write>> {
+        let format = super::suggest_format_from_path(path.as_ref());
+        match format {
+            #[cfg(feature = "flate2")]
+            Format::Gzip => {
+                Ok(self.add_block_writer(std::fs::File::create(path)?, BlockCompress::gzip(level)))
+            }
+            #[cfg(feature = "bzip2")]
+            Format::Bzip2 => Ok(
+                self.add_block_writer(std::fs::File::create(path)?, BlockCompress::bzip2(level))
+            ),
+            #[cfg(feature = "xz2")]
+            Format::Xz => {
+                Ok(self.add_block_writer(std::fs::File::create(path)?, BlockCompress::xz(level)))
+            }
+            #[cfg(feature = "zstd")]
+            Format::Zstd => {
+                Ok(self.add_block_writer(std::fs::File::create(path)?, BlockCompress::zstd(level)))
+            }
+            Format::Unknown => {
+                Ok(self.add_block_writer(std::fs::File::create(path)?, BlockCompress::plain()))
+            }
+            _ => Err(io::Error::new(
+                io::ErrorKind::Other,
+                "Unsupported format for multi thread writer",
+            )),
+        }
+    }
+
+    /// Creates new multi threaded compressor. This writer has buffers, so wrapping with `std::io::BufWriter` is not required.
+    ///
+    /// Example:
+    /// ```rust
+    /// use autocompress::iothread::{IoThread, BlockCompress};
+    /// use autocompress::CompressionLevel;
+    /// # use std::io::{Write, self};
+    /// # fn main() -> std::io::Result<()> {
+    /// let mut gzip_block_compress = BlockCompress::gzip(CompressionLevel::Default);
+    /// let file_writer = std::fs::File::create("target/block-writer2.txt.gz")?;
+    /// let iothread = IoThread::new(1);
+    /// let mut block_writer = iothread.add_block_writer(file_writer, gzip_block_compress);
+    /// block_writer.write_all(b"ABCDEFG")?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn add_block_writer<W: io::Write + Send + 'static>(
         &self,
         writer: W,
@@ -112,6 +197,20 @@ impl IoThread {
 
     /// Register new writer and create threaded writer. Since each write requests cause inter thread communication,
     /// wrapping with `std::io::BufWriter` is recommended.
+    ///
+    /// Example:
+    /// ```rust
+    /// use autocompress::{iothread::IoThread, create, CompressionLevel};
+    /// use std::io::{prelude::*, self};
+    /// # fn main() -> io::Result<()> {
+    ///
+    /// let nothread_writer = create("target/plain2.txt.xz", CompressionLevel::Default)?;
+    /// let thread_pool = IoThread::new(2);
+    /// let mut threaded_writer = thread_pool.add_writer(nothread_writer);
+    /// threaded_writer.write_all(b"ABCDEFG\r\n1234567")?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn add_writer<W: io::Write + Send + 'static>(&self, writer: W) -> ThreadWriter<W> {
         let (result_sender, result_receiver) = crossbeam_channel::bounded(2);
 
@@ -127,6 +226,22 @@ impl IoThread {
     }
 
     /// Register new writer and create threaded reader.
+    ///
+    /// Example:
+    /// ```
+    /// use autocompress::{iothread::IoThread, open};
+    /// use std::io::{prelude::*, self};
+    /// # fn main() -> io::Result<()> {
+    ///
+    /// let nothread_reader = open("testfiles/plain.txt")?;
+    /// let thread_pool = IoThread::new(2);
+    /// let mut threaded_reader = thread_pool.add_reader(nothread_reader)?;
+    /// let mut buffer = Vec::new();
+    /// threaded_reader.read_to_end(&mut buffer)?;
+    /// assert_eq!(buffer, b"ABCDEFG\r\n1234567");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn add_reader<R: io::Read + Send + 'static>(
         &self,
         reader: R,
