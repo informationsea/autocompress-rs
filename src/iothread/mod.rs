@@ -457,7 +457,11 @@ fn worker_thread(thread_index: usize, receiver: crossbeam_channel::Receiver<IoRe
                 IoRequest::Compress(block_compress, index, raw_buf, mut compressed_buf, sender) => {
                     log::trace!("compress request: {}", thread_index);
                     compressed_buf.clear();
-                    (block_compress.compress_block)(&raw_buf, &mut compressed_buf);
+                    (block_compress.compress_block)(
+                        &raw_buf,
+                        &mut compressed_buf,
+                        block_compress.compression_level,
+                    );
                     if let Err(e) = sender.send(IoResult::Compress(index, raw_buf, compressed_buf))
                     {
                         log::debug!("IO Thread Send Error (read): {}", e);

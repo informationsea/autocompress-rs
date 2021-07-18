@@ -1,8 +1,9 @@
+use super::super::CompressionLevel;
 use super::{IoRequest, IoResult};
 use std::collections::HashMap;
 use std::io::{self, prelude::*};
 
-/// Threaded writer. Creates with [`IoThread::add_writer`].
+/// Threaded writer. Creates with [`super::IoThread::add_block_writer`].
 pub struct BlockWriter<'a, W: io::Write + Send> {
     pub(crate) block_compress: BlockCompress,
     pub(crate) sender: &'a crossbeam_channel::Sender<IoRequest>,
@@ -263,28 +264,77 @@ impl<'a, W: io::Write + Send> Write for BlockWriter<'a, W> {
     }
 }
 
-type CompressBlock = fn(block: &[u8], result: &mut Vec<u8>);
+type CompressBlock = fn(block: &[u8], result: &mut Vec<u8>, compression_level: CompressionLevel);
 
+/// Methods for threaded compression
 #[derive(Clone, Copy)]
 pub struct BlockCompress {
     pub(crate) compress_block: CompressBlock,
     pub(crate) block_size: usize,
+    pub(crate) compression_level: CompressionLevel,
 }
 
 impl BlockCompress {
     #[cfg(feature = "flate2")]
-    pub fn gzip() -> Self {
+    pub fn gzip(compression_level: CompressionLevel) -> Self {
         BlockCompress {
             compress_block: gzip_compress_block,
             block_size: 1024 * 128,
+            compression_level,
+        }
+    }
+
+    #[cfg(feature = "bzip2")]
+    pub fn bzip2(compression_level: CompressionLevel) -> Self {
+        BlockCompress {
+            compress_block: bzip2_compress_block,
+            block_size: 1024 * 128,
+            compression_level,
+        }
+    }
+
+    #[cfg(feature = "xz2")]
+    pub fn xz(compression_level: CompressionLevel) -> Self {
+        BlockCompress {
+            compress_block: xz_compress_block,
+            block_size: 1024 * 128,
+            compression_level,
+        }
+    }
+
+    #[cfg(feature = "zstd")]
+    pub fn zstd(compression_level: CompressionLevel) -> Self {
+        BlockCompress {
+            compress_block: zstd_compress_block,
+            block_size: 1024 * 128,
+            compression_level,
         }
     }
 }
 
 #[cfg(feature = "flate2")]
-fn gzip_compress_block(block: &[u8], result: &mut Vec<u8>) {
-    let mut writer = flate2::write::GzEncoder::new(result, flate2::Compression::default());
+fn gzip_compress_block(block: &[u8], result: &mut Vec<u8>, compression_level: CompressionLevel) {
+    let mut writer = flate2::write::GzEncoder::new(result, compression_level.into());
     writer.write_all(block).unwrap();
+}
+
+#[cfg(feature = "bzip2")]
+fn bzip2_compress_block(block: &[u8], result: &mut Vec<u8>, compression_level: CompressionLevel) {
+    let mut writer = bzip2::write::BzEncoder::new(result, compression_level.into());
+    writer.write_all(block).unwrap();
+}
+
+#[cfg(feature = "xz2")]
+fn xz_compress_block(block: &[u8], result: &mut Vec<u8>, compression_level: CompressionLevel) {
+    let mut writer = xz2::write::XzEncoder::new(result, compression_level.xz_level());
+    writer.write_all(block).unwrap();
+    writer.finish().unwrap();
+}
+
+#[cfg(feature = "zstd")]
+fn zstd_compress_block(block: &[u8], result: &mut Vec<u8>, compression_level: CompressionLevel) {
+    let mut compressed = zstd::block::compress(block, compression_level.zstd_level()).unwrap();
+    result.append(&mut compressed);
 }
 
 #[cfg(test)]
@@ -294,10 +344,10 @@ mod test {
     use std::str;
 
     #[test]
-    fn test_block_writer() -> io::Result<()> {
-        std::env::set_var("RUST_LOG", "debug");
-        pretty_env_logger::init();
-        let mut gzip_block_compress = BlockCompress::gzip();
+    fn test_gzip_block_writer() -> io::Result<()> {
+        // std::env::set_var("RUST_LOG", "debug");
+        // pretty_env_logger::init();
+        let mut gzip_block_compress = BlockCompress::gzip(CompressionLevel::Default);
         gzip_block_compress.block_size = 20;
         let file_writer = std::fs::File::create("target/block1.txt.gz")?;
         let iothread = IoThread::new(1);
@@ -314,6 +364,102 @@ mod test {
         std::mem::drop(block_writer);
 
         let mut file_reader = crate::open("target/block1.txt.gz")?;
+        let mut wrote_bytes = Vec::new();
+        file_reader.read_to_end(&mut wrote_bytes)?;
+        assert_eq!(
+            str::from_utf8(&wrote_bytes).unwrap(),
+            "a123456789b123456789c123456789d123456789e123456789ABCf123456789ABCg123456789ABCh123456789ABCi123456789j123456789k123456789l123456789"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_bzip2_block_writer() -> io::Result<()> {
+        // std::env::set_var("RUST_LOG", "debug");
+        // pretty_env_logger::init();
+        let mut block_compress = BlockCompress::bzip2(CompressionLevel::Default);
+        block_compress.block_size = 20;
+        let file_writer = std::fs::File::create("target/block1.txt.bz2")?;
+        let iothread = IoThread::new(1);
+        let mut block_writer = iothread.add_block_writer(file_writer, block_compress);
+        block_writer.write_all(b"a123456789")?;
+        block_writer.write_all(b"b123456789")?;
+        block_writer.write_all(b"c123456789")?;
+        block_writer.write_all(b"d123456789")?;
+        block_writer.write_all(b"e123456789ABC")?;
+        block_writer.write_all(b"f123456789ABC")?;
+        block_writer.write_all(b"g123456789ABC")?;
+        block_writer.write_all(b"h123456789ABC")?;
+        block_writer.write_all(b"i123456789j123456789k123456789l123456789")?;
+        std::mem::drop(block_writer);
+
+        let mut file_reader = crate::open("target/block1.txt.bz2")?;
+        let mut wrote_bytes = Vec::new();
+        file_reader.read_to_end(&mut wrote_bytes)?;
+        assert_eq!(
+            str::from_utf8(&wrote_bytes).unwrap(),
+            "a123456789b123456789c123456789d123456789e123456789ABCf123456789ABCg123456789ABCh123456789ABCi123456789j123456789k123456789l123456789"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_xz_block_writer() -> io::Result<()> {
+        // std::env::set_var("RUST_LOG", "debug");
+        // pretty_env_logger::init();
+        let mut block_compress = BlockCompress::xz(CompressionLevel::Default);
+        block_compress.block_size = 20;
+        let file_writer = std::fs::File::create("target/block1.txt.xz")?;
+        let iothread = IoThread::new(1);
+        let mut block_writer = iothread.add_block_writer(file_writer, block_compress);
+
+        block_writer.write_all(b"a123456789")?;
+        block_writer.write_all(b"b123456789")?;
+        block_writer.write_all(b"c123456789")?;
+        block_writer.write_all(b"d123456789")?;
+        block_writer.write_all(b"e123456789ABC")?;
+        block_writer.write_all(b"f123456789ABC")?;
+        block_writer.write_all(b"g123456789ABC")?;
+        block_writer.write_all(b"h123456789ABC")?;
+        block_writer.write_all(b"i123456789j123456789k123456789l123456789")?;
+        std::mem::drop(block_writer);
+
+        let mut file_reader = crate::open("target/block1.txt.xz")?;
+        let mut wrote_bytes = Vec::new();
+        file_reader.read_to_end(&mut wrote_bytes)?;
+        assert_eq!(
+            str::from_utf8(&wrote_bytes).unwrap(),
+            "a123456789b123456789c123456789d123456789e123456789ABCf123456789ABCg123456789ABCh123456789ABCi123456789j123456789k123456789l123456789"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_zstd_block_writer() -> io::Result<()> {
+        // std::env::set_var("RUST_LOG", "debug");
+        // pretty_env_logger::init();
+        let mut block_compress = BlockCompress::zstd(CompressionLevel::Default);
+        block_compress.block_size = 20;
+        let file_writer = std::fs::File::create("target/block1.txt.zst")?;
+        let iothread = IoThread::new(1);
+        let mut block_writer = iothread.add_block_writer(file_writer, block_compress);
+
+        block_writer.write_all(b"a123456789")?;
+        block_writer.write_all(b"b123456789")?;
+        block_writer.write_all(b"c123456789")?;
+        block_writer.write_all(b"d123456789")?;
+        block_writer.write_all(b"e123456789ABC")?;
+        block_writer.write_all(b"f123456789ABC")?;
+        block_writer.write_all(b"g123456789ABC")?;
+        block_writer.write_all(b"h123456789ABC")?;
+        block_writer.write_all(b"i123456789j123456789k123456789l123456789")?;
+        std::mem::drop(block_writer);
+        eprintln!("drop writer");
+
+        let mut file_reader = crate::open("target/block1.txt.zst")?;
         let mut wrote_bytes = Vec::new();
         file_reader.read_to_end(&mut wrote_bytes)?;
         assert_eq!(

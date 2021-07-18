@@ -13,7 +13,7 @@ enum DecoderInner<R: io::Read> {
     #[cfg(feature = "flate2")]
     ZlibDecoder(flate2::read::ZlibDecoder<R>),
     #[cfg(feature = "bzip2")]
-    Bzip2Decoder(bzip2::read::BzDecoder<R>),
+    Bzip2Decoder(bzip2::read::MultiBzDecoder<R>),
     #[cfg(feature = "xz2")]
     XzDecoder(xz2::read::XzDecoder<R>),
     #[cfg(feature = "snap")]
@@ -77,9 +77,13 @@ impl<R: io::Read> Decoder<R> {
                 #[cfg(feature = "flate2")]
                 Format::Zlib => DecoderInner::ZlibDecoder(flate2::read::ZlibDecoder::new(reader)),
                 #[cfg(feature = "bzip2")]
-                Format::Bzip2 => DecoderInner::Bzip2Decoder(bzip2::read::BzDecoder::new(reader)),
+                Format::Bzip2 => {
+                    DecoderInner::Bzip2Decoder(bzip2::read::MultiBzDecoder::new(reader))
+                }
                 #[cfg(feature = "xz2")]
-                Format::Xz => DecoderInner::XzDecoder(xz2::read::XzDecoder::new(reader)),
+                Format::Xz => {
+                    DecoderInner::XzDecoder(xz2::read::XzDecoder::new_multi_decoder(reader))
+                }
                 #[cfg(feature = "snap")]
                 Format::Snappy => {
                     DecoderInner::SnappyDecoder(snap::read::FrameDecoder::new(reader))

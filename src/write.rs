@@ -36,7 +36,7 @@ impl From<CompressionLevel> for bzip2::Compression {
 
 impl CompressionLevel {
     #[cfg(feature = "xz2")]
-    fn xz_level(self) -> u32 {
+    pub(crate) fn xz_level(self) -> u32 {
         match self {
             CompressionLevel::Fast => 0,
             CompressionLevel::Default => 6,
@@ -46,7 +46,7 @@ impl CompressionLevel {
     }
 
     #[cfg(feature = "zstd")]
-    fn zstd_level(self) -> i32 {
+    pub(crate) fn zstd_level(self) -> i32 {
         match self {
             CompressionLevel::Fast => 1,
             CompressionLevel::Default => 0,
@@ -56,7 +56,7 @@ impl CompressionLevel {
     }
 
     #[cfg(feature = "lz4")]
-    fn lz4_level(self) -> u32 {
+    pub(crate) fn lz4_level(self) -> u32 {
         match self {
             CompressionLevel::Fast => 1,
             CompressionLevel::Default => 0,
@@ -66,7 +66,7 @@ impl CompressionLevel {
     }
 
     #[cfg(feature = "brotli")]
-    fn brotli(self) -> u32 {
+    pub(crate) fn brotli(self) -> u32 {
         match self {
             CompressionLevel::Fast => 1,
             CompressionLevel::Default => 11,
