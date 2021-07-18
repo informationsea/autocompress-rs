@@ -1,6 +1,6 @@
 [package]
 name = "autocompress"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["Yasunobu Okamura <okamura@informationsea.info>"]
 edition = "2018"
 description = "Automatically select suitable decoder from magic bytes or encoder from file extension."
