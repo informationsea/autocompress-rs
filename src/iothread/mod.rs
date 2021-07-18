@@ -20,19 +20,30 @@
 //! # }
 //! # }
 //! ```
+mod block;
+pub use block::{BlockCompress, BlockWriter};
+
 use std::io::{self, prelude::*};
 use std::thread;
 
 const READER_BUFFER_SIZE: usize = 1000000;
 const READER_BUFFER_COUNT: usize = 2;
 
-enum IoResult {
+pub(crate) enum IoResult {
+    Compress(u64, Vec<u8>, Vec<u8>),
     Write(Box<dyn io::Write + Send>, Vec<u8>, io::Result<()>),
     Flush(Box<dyn io::Write + Send>, io::Result<()>),
     Read(Box<dyn io::Read + Send>, Vec<u8>, io::Result<usize>),
 }
 
-enum IoRequest {
+pub(crate) enum IoRequest {
+    Compress(
+        block::BlockCompress,
+        u64,
+        Vec<u8>,
+        Vec<u8>,
+        crossbeam_channel::Sender<IoResult>,
+    ),
     Write(
         Box<dyn io::Write + Send>,
         Vec<u8>,
@@ -69,6 +80,33 @@ impl IoThread {
         IoThread {
             thread_pool,
             sender,
+        }
+    }
+
+    pub fn add_block_writer<W: io::Write + Send + 'static>(
+        &self,
+        writer: W,
+        block_compress: BlockCompress,
+    ) -> BlockWriter<W> {
+        let (result_sender, result_receiver) = crossbeam_channel::bounded(2);
+
+        let empty_buffer = (0..(self.thread_pool.len() * 2 - 1))
+            .map(|_| Vec::new())
+            .collect();
+
+        BlockWriter {
+            block_compress,
+            sender: &self.sender,
+            result_receiver,
+            result_sender,
+            current_buffer: Some(Vec::new()),
+            empty_buffer,
+            compressed_result_buffer: std::collections::HashMap::new(),
+            next_write_index: 0,
+            next_compress_index: 0,
+            writer: Some(Box::new(writer)),
+            closed: false,
+            _phantom: std::marker::PhantomData,
         }
     }
 
@@ -416,6 +454,16 @@ fn worker_thread(thread_index: usize, receiver: crossbeam_channel::Receiver<IoRe
                         // break;
                     }
                 }
+                IoRequest::Compress(block_compress, index, raw_buf, mut compressed_buf, sender) => {
+                    log::trace!("compress request: {}", thread_index);
+                    compressed_buf.clear();
+                    (block_compress.compress_block)(&raw_buf, &mut compressed_buf);
+                    if let Err(e) = sender.send(IoResult::Compress(index, raw_buf, compressed_buf))
+                    {
+                        log::debug!("IO Thread Send Error (read): {}", e);
+                        // break;
+                    }
+                }
             },
             Err(e) => {
                 log::error!("IO Thread Receive error: {}", e);
@@ -478,7 +526,7 @@ mod test {
         //std::env::set_var("RUST_LOG", "debug");
         //pretty_env_logger::init();
         let iothread = IoThread::new(1);
-        let expected_bytes = include_bytes!("../testfiles/plain.txt");
+        let expected_bytes = include_bytes!("../../testfiles/plain.txt");
         let mut reader1 =
             iothread.add_reader_with_capacity(fs::File::open("./testfiles/plain.txt")?, 9)?;
         let mut reader2 =
@@ -502,7 +550,7 @@ mod test {
         //std::env::set_var("RUST_LOG", "debug");
         //pretty_env_logger::init();
         let iothread = IoThread::new(1);
-        let expected_bytes = include_bytes!("../testfiles/plain.txt");
+        let expected_bytes = include_bytes!("../../testfiles/plain.txt");
         let mut reader1 =
             iothread.add_reader_with_capacity(fs::File::open("./testfiles/plain.txt")?, 3)?;
         let mut reader2 =
@@ -526,7 +574,7 @@ mod test {
         //std::env::set_var("RUST_LOG", "debug");
         //pretty_env_logger::init();
         let iothread = IoThread::new(1);
-        let expected_bytes = include_bytes!("../testfiles/plain.txt");
+        let expected_bytes = include_bytes!("../../testfiles/plain.txt");
         let mut reader1 =
             iothread.add_reader_with_capacity(fs::File::open("./testfiles/plain.txt")?, 9)?;
         let mut reader2 =
