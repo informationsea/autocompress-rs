@@ -2,9 +2,9 @@ name: Build
 
 on:
   push:
-    branches: [ master, test-actions ]
+    branches: [master, test-actions]
   pull_request:
-    branches: [ master ]
+    branches: [master]
 
 env:
   CARGO_TERM_COLOR: always
@@ -20,12 +20,20 @@ jobs:
             test: true
             cross: false
           - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            test: false
+            cross: false
+          - os: windows-latest
             target: i686-pc-windows-msvc
             test: true
             cross: false
           - os: macos-latest
             target: x86_64-apple-darwin
             test: true
+            cross: false
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            test: false
             cross: false
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
@@ -36,97 +44,97 @@ jobs:
             test: true
             cross: false
     steps:
-    - name: Git config
-      if: ${{ matrix.config.os == 'windows-latest' }}
-      run: git config --global core.autocrlf input
-    - uses: actions/checkout@v2
-    - name: Install musl tools
-      if: ${{ matrix.config.target == 'x86_64-unknown-linux-musl' }}
-      run: sudo apt-get install musl-tools musl-dev
-    - name: Checkout submodule
-      run: git submodule update --init --recursive
-    - name: Install rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        target: ${{ matrix.config.target }}
-        override: true
-        components: rustfmt, clippy
-    - name: Cache dependencies
-      uses: actions/cache@v2
-      env:
-        cache-name: cache-cargo
-      with:
-        path: ~/.cargo/registry
-        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/*.crate') }}
-        restore-keys: |
-          ${{ runner.os }}-build-${{ env.cache-name }}-
-    - name: Cache target
-      uses: actions/cache@v2
-      env:
-        cache-name: cache-target
-      with:
-        path: target
-        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ matrix.config.target }}-${{ hashFiles('**/*.o') }}
-        restore-keys: |
-          ${{ runner.os }}-build-${{ env.cache-name }}-${{ matrix.config.target }}
-    - name: Test all
-      if: ${{ matrix.config.test }}
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --release --target ${{ matrix.config.target }}
-    - name: Test gzip
-      if: ${{ matrix.config.test }}
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --release --target ${{ matrix.config.target }} --no-default-features --features gzip --tests
-    - name: Test zlib
-      if: ${{ matrix.config.test }}
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --release --target ${{ matrix.config.target }} --no-default-features --features zlib --tests
-    - name: Test miniz-sys
-      if: ${{ matrix.config.test }}
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --release --target ${{ matrix.config.target }} --no-default-features --features miniz-sys --tests
-    - name: Test snap
-      if: ${{ matrix.config.test }}
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --release --target ${{ matrix.config.target }} --no-default-features --features snap --tests
-    - name: Test zstd
-      if: ${{ matrix.config.test }}
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --release --target ${{ matrix.config.target }} --no-default-features --features zstd --tests
-    - name: Test bzip2
-      if: ${{ matrix.config.test }}
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --release --target ${{ matrix.config.target }} --no-default-features --features bzip2 --tests
-    - name: Test lz4
-      if: ${{ matrix.config.test }}
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --release --target ${{ matrix.config.target }} --no-default-features --features lz4 --tests
-    - name: Test xz
-      if: ${{ matrix.config.test }}
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --release --target ${{ matrix.config.target }} --no-default-features --features xz --tests
-    - name: Test brotli
-      if: ${{ matrix.config.test }}
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --release --target ${{ matrix.config.target }} --no-default-features --features brotli --tests
+      - name: Git config
+        if: ${{ matrix.config.os == 'windows-latest' }}
+        run: git config --global core.autocrlf input
+      - uses: actions/checkout@v2
+      - name: Install musl tools
+        if: ${{ matrix.config.target == 'x86_64-unknown-linux-musl' }}
+        run: sudo apt-get install musl-tools musl-dev
+      - name: Checkout submodule
+        run: git submodule update --init --recursive
+      - name: Install rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.config.target }}
+          override: true
+          components: rustfmt, clippy
+      - name: Cache dependencies
+        uses: actions/cache@v2
+        env:
+          cache-name: cache-cargo
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/*.crate') }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ env.cache-name }}-
+      - name: Cache target
+        uses: actions/cache@v2
+        env:
+          cache-name: cache-target
+        with:
+          path: target
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ matrix.config.target }}-${{ hashFiles('**/*.o') }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ env.cache-name }}-${{ matrix.config.target }}
+      - name: Test all
+        if: ${{ matrix.config.test }}
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --release --target ${{ matrix.config.target }}
+      - name: Test gzip
+        if: ${{ matrix.config.test }}
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --release --target ${{ matrix.config.target }} --no-default-features --features gzip --tests
+      - name: Test zlib
+        if: ${{ matrix.config.test }}
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --release --target ${{ matrix.config.target }} --no-default-features --features zlib --tests
+      - name: Test miniz-sys
+        if: ${{ matrix.config.test }}
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --release --target ${{ matrix.config.target }} --no-default-features --features miniz-sys --tests
+      - name: Test snap
+        if: ${{ matrix.config.test }}
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --release --target ${{ matrix.config.target }} --no-default-features --features snap --tests
+      - name: Test zstd
+        if: ${{ matrix.config.test }}
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --release --target ${{ matrix.config.target }} --no-default-features --features zstd --tests
+      - name: Test bzip2
+        if: ${{ matrix.config.test }}
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --release --target ${{ matrix.config.target }} --no-default-features --features bzip2 --tests
+      - name: Test lz4
+        if: ${{ matrix.config.test }}
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --release --target ${{ matrix.config.target }} --no-default-features --features lz4 --tests
+      - name: Test xz
+        if: ${{ matrix.config.test }}
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --release --target ${{ matrix.config.target }} --no-default-features --features xz --tests
+      - name: Test brotli
+        if: ${{ matrix.config.test }}
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --release --target ${{ matrix.config.target }} --no-default-features --features brotli --tests
