@@ -1,84 +1,56 @@
-use clap::{App, Arg};
+use clap::Parser;
 use rand::prelude::*;
 use std::io::{self, prelude::*};
 
+#[derive(Parser, Debug)]
+#[command(
+    name = "writer test",
+    version = "0.1",
+    author = "Yasunobu Okamura",
+    about = "Writer test"
+)]
+struct Cli {
+    #[arg(short, long, value_name = "FILE", help = "Output file name")]
+    output: String,
+    #[arg(short, long, value_name = "THREAD", help = "Enable threaded I/O")]
+    use_thread: Option<usize>,
+    #[arg(
+        short,
+        long,
+        value_name = "BYTES",
+        help = "Output file bytes",
+        default_value = "500000000"
+    )]
+    bytes: u64,
+    #[arg(short, long, help = "Generate random value in loop")]
+    random_generate: bool,
+    #[arg(long, conflicts_with = "fast", help = "Best compression")]
+    best: bool,
+    #[arg(long, conflicts_with = "best", help = "Fast compression")]
+    fast: bool,
+}
+
 fn main() -> io::Result<()> {
-    let matches = App::new("writer test")
-        .version("0.1")
-        .author("Yasunobu Okamura")
-        .about("Writer test")
-        .arg(
-            Arg::with_name("output")
-                .index(1)
-                .value_name("FILE")
-                .help("Output file name")
-                .takes_value(true)
-                .required(true),
-        )
-        .arg(
-            Arg::with_name("use-thread")
-                .short("t")
-                .long("thread")
-                .takes_value(true)
-                .help("Enable threaded I/O"),
-        )
-        .arg(
-            Arg::with_name("bytes")
-                .short("b")
-                .long("bytes")
-                .help("Output file bytes")
-                .value_name("BYTES")
-                .default_value("500000000")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("random-generate-in-loop")
-                .short("r")
-                .long("random-generate-in-loop")
-                .help("Generate random value in loop"),
-        )
-        .arg(
-            Arg::with_name("best")
-                .long("best")
-                .help("Best compression")
-                .conflicts_with("fast"),
-        )
-        .arg(
-            Arg::with_name("fast")
-                .long("Fast")
-                .help("Fast compression")
-                .conflicts_with("best"),
-        )
-        .get_matches();
+    let cli = Cli::parse();
 
-    let thread_num: usize = matches
-        .value_of("use-thread")
-        .map(|x| x.parse().expect("number of threads must be number"))
-        .unwrap_or(0);
+    let thread_num: usize = cli.use_thread.unwrap_or(0);
 
-    let bytes: u64 = matches
-        .value_of("bytes")
-        .map(|x| x.parse().expect("output file bytes must be number"))
-        .unwrap();
-
-    let random_generate = matches.is_present("random-generate-in-loop");
-
-    let compression_level = if matches.is_present("fast") {
+    let compression_level = if cli.fast {
         autocompress::CompressionLevel::Fast
-    } else if matches.is_present("best") {
+    } else if cli.best {
         autocompress::CompressionLevel::Best
     } else {
         autocompress::CompressionLevel::Default
     };
 
-    let mut writer = autocompress::create(matches.value_of("output").unwrap(), compression_level)?;
+    let mut writer = autocompress::create(&cli.output, compression_level)?;
 
     if thread_num > 0 {
         let threadio = autocompress::iothread::IoThread::new(thread_num);
         let mut writer = threadio.add_writer(writer);
-        write_data(&mut writer, bytes, random_generate)?;
+        write_data(&mut writer, cli.bytes, cli.random_generate)?;
     } else {
-        write_data(&mut writer, bytes, random_generate)?;
+        write_data(&mut writer, cli.bytes, cli.random_generate)?;
     }
 
     Ok(())

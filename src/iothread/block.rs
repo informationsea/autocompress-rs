@@ -345,7 +345,7 @@ fn xz_compress_block(block: &[u8], result: &mut Vec<u8>, compression_level: Comp
 
 #[cfg(feature = "zstd")]
 fn zstd_compress_block(block: &[u8], result: &mut Vec<u8>, compression_level: CompressionLevel) {
-    let mut compressed = zstd::block::compress(block, compression_level.zstd_level()).unwrap();
+    let mut compressed = zstd::bulk::compress(block, compression_level.zstd_level()).unwrap();
     result.append(&mut compressed);
 }
 
