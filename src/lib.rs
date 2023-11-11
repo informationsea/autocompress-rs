@@ -1,496 +1,320 @@
-//! Automatically select suitable decoder from magic bytes or encoder from file extension.
-//! This library also provides I/O thread pool to perform decompression and compression in background threads.
+#![cfg_attr(doc_cfg, feature(doc_cfg))]
+
+//! # autocompress
 //!
-//! Supported file formats
-//! ---------------------
+//! A library for reading and writing compressed files with async support and automatic format detection.
 //!
-//! * [Gzip](https://www.ietf.org/rfc/rfc1952.txt)
-//! * [Zlib](https://www.ietf.org/rfc/rfc1950.txt) (Cannot suggest format from magic bytes and file extension)
-//! * [BZip2](https://www.sourceware.org/bzip2/)
-//! * [XZ](https://tukaani.org/xz/format.html)
-//! * [Snappy](https://github.com/google/snappy) (Cannot suggest format from file extension)
-//! * [Z-standard](https://facebook.github.io/zstd/)
-//! * [LZ4](https://www.lz4.org/)
-//! * [Brotli](https://github.com/google/brotli) (Cannot suggest format from magic bytes)
+//! ## Feature flags
+//! * `gzip` : Gzip format support
+//! * `bgzip` : [bgzip](https://github.com/informationsea/bgzip-rs) format support
+//! * `bzip2` : Bzip2 format support
+//! * `xz` : XZ format support
+//! * `zstd` : Zstd format support
+//! * `rayon` : Off-load compression and decompression process to another thread using [rayon](https://crates.io/crates/rayon)
+//! * `tokio` : Async reader and writer support with [tokio](https://crates.io/crates/tokio)
+//! * `tokio_fs`: Enable `autodetect_async_open` function
+//!
+//! ## Migration from previous versions
+//!
+//! This version drops supports of some formats, such as snappy, lz4 and brotli.
+//! Names of functions are also changed. Please replace following functions to migrate from previous versions.
+//!
+//! * `create` -> [`autodetect_create`]
+//! * `open` -> [`autodetect_open`]
+//! * `create_or_stdout` -> [`autodetect_create_or_stdout`]
+//! * `open_or_stdin` -> [`autodetect_open_or_stdin`]
+//! * `suggest_format` -> [`FileFormat::from_buf_reader`]
+//! * `suggest_format_from_path` -> [`FileFormat::from_path`]
 //!
 //! ## Example
-//! ```
-//! use autocompress::open;
-//! use std::io::{self, Read};
 //!
-//! fn main() -> io::Result<()> {
-//! # #[cfg(feature = "xz2")] {
-//!   let mut buffer = Vec::new();
-//!   open("testfiles/plain.txt.xz")?.read_to_end(&mut buffer)?;
-//!   assert_eq!(buffer, b"ABCDEFG\r\n1234567");
-//! # }
-//!   Ok(())
-//! }
+//! ### Read from a file
 //! ```
+//! # use std::io::prelude::*;
+//! use autocompress::autodetect_open;
 //!
-//! ## I/O thread example
-//! ```
-//! # #[cfg(feature = "thread")] {
-//! use autocompress::{iothread::IoThread, open, create, CompressionLevel};
-//!
-//! # use std::io::{prelude::*, self};
-//! # fn main() -> io::Result<()> {
-//! let thread_pool = IoThread::new(2);
-//! let mut threaded_reader = thread_pool.open("testfiles/plain.txt.xz")?;
-//! let mut threaded_writer = thread_pool.create("target/plain.txt.xz", CompressionLevel::Default)?;
-//! let mut buffer = Vec::new();
-//! threaded_reader.read_to_end(&mut buffer)?;
-//! assert_eq!(buffer, b"ABCDEFG\r\n1234567");
-//! threaded_writer.write_all(b"ABCDEFG\r\n1234567")?;
+//! # fn main() -> anyhow::Result<()> {
+//! let mut reader = autodetect_open("testfiles/sqlite3.c.xz")?;
+//! let mut buf = Vec::new();
+//! reader.read_to_end(&mut buf)?;
 //! # Ok(())
 //! # }
+//! ```
+//!
+//! ### Write to a file
+//!
+//! ```
+//! # use std::io::prelude::*;
+//! use autocompress::{autodetect_create, CompressionLevel};
+//!
+//! # fn main() -> anyhow::Result<()> {
+//! let mut writer = autodetect_create("target/doc-index.xz", CompressionLevel::Default)?;
+//! writer.write_all(&b"Hello, world\n"[..])?;
+//! # Ok(())
 //! # }
 //! ```
+mod autodetect;
+#[cfg(feature = "bgzip")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "bgzip")))]
+pub mod bgzip;
+#[cfg(feature = "bzip2")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "bzip2")))]
+pub mod bzip2;
+mod error;
+#[cfg(feature = "flate2")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "gzip")))]
+pub mod gzip;
+#[cfg(feature = "xz")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "xz")))]
+/// XZ format support
+pub mod xz;
+#[cfg(feature = "flate2")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "gzip")))]
+/// Zlib format support
+pub mod zlib;
+#[cfg(feature = "zstd")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "zstd")))]
+pub mod zstd;
 
-mod read;
-mod write;
+/// Reader and Writer implementations for [`Processor`]
+pub mod io;
 
-#[cfg(feature = "thread")]
-pub mod iothread;
+pub use autodetect::*;
+pub use error::{Error, Result};
 
-pub use read::Decoder;
-use std::ffi::OsStr;
-use std::fs;
-use std::io::{self, prelude::*};
-use std::path;
-pub use write::{CompressionLevel, Encoder};
+pub(crate) trait ReadExt: std::io::Read {
+    fn read_u8(&mut self) -> std::io::Result<u8> {
+        let mut buf = [0u8; 1];
+        self.read_exact(&mut buf)?;
+        Ok(buf[0])
+    }
 
-/// List of supported file formats
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-pub enum Format {
-    #[cfg(feature = "flate2")]
-    Gzip,
-    #[cfg(feature = "flate2")]
-    Zlib,
-    #[cfg(feature = "bzip2")]
-    Bzip2,
-    #[cfg(feature = "xz2")]
-    Xz,
-    #[cfg(feature = "snap")]
-    Snappy,
-    #[cfg(feature = "zstd")]
-    Zstd,
-    #[cfg(feature = "lz4")]
-    Lz4,
-    #[cfg(feature = "brotli")]
-    Brotli,
-    Unknown,
+    fn read_u16_le(&mut self) -> std::io::Result<u16> {
+        let mut buf = [0u8; 2];
+        self.read_exact(&mut buf)?;
+        Ok(u16::from_le_bytes(buf))
+    }
+
+    fn read_u32_le(&mut self) -> std::io::Result<u32> {
+        let mut buf = [0u8; 4];
+        self.read_exact(&mut buf)?;
+        Ok(u32::from_le_bytes(buf))
+    }
 }
 
-/// Suggest file format from magic bytes.
-/// This function does not consume data.
-pub fn suggest_format(mut reader: impl io::BufRead) -> io::Result<Format> {
-    let buffer = reader.fill_buf()?;
-    #[cfg(feature = "flate2")]
-    if buffer.starts_with(&[0x1f, 0x8b]) {
-        return Ok(Format::Gzip);
+impl<T: std::io::Read> ReadExt for T {}
+
+pub(crate) trait WriteExt: std::io::Write {
+    fn write_u8(&mut self, value: u8) -> std::io::Result<()> {
+        self.write_all(&[value])
     }
-    #[cfg(feature = "bzip2")]
-    if buffer.starts_with(b"BZ") {
-        return Ok(Format::Bzip2);
+
+    fn write_u16_le(&mut self, value: u16) -> std::io::Result<()> {
+        self.write_all(&value.to_le_bytes())
     }
-    #[cfg(feature = "snap")]
-    if buffer.starts_with(b"sNaPpY") {
-        return Ok(Format::Snappy);
+
+    fn write_u32_le(&mut self, value: u32) -> std::io::Result<()> {
+        self.write_all(&value.to_le_bytes())
     }
-    #[cfg(feature = "xz2")]
-    if buffer.starts_with(&[0xFD, b'7', b'z', b'X', b'Z', 0x00]) {
-        return Ok(Format::Xz);
-    }
-    #[cfg(feature = "zstd")]
-    if buffer.starts_with(&[0x28, 0xB5, 0x2F, 0xFD]) {
-        return Ok(Format::Zstd);
-    }
-    #[cfg(feature = "lz4")]
-    if buffer.starts_with(&[0x04, 0x22, 0x4D, 0x18]) {
-        return Ok(Format::Lz4);
-    }
-    Ok(Format::Unknown)
 }
 
-/// Suggest file format from a path extension
-pub fn suggest_format_from_path(path: impl AsRef<path::Path>) -> Format {
-    #[cfg(feature = "brotli")]
-    if path.as_ref().extension() == Some(OsStr::new("br")) {
-        return Format::Brotli;
-    }
-    #[cfg(feature = "flate2")]
-    if path.as_ref().extension() == Some(OsStr::new("gz")) {
-        return Format::Gzip;
-    }
-    #[cfg(feature = "bzip2")]
-    if path.as_ref().extension() == Some(OsStr::new("bz2")) {
-        return Format::Bzip2;
-    }
-    #[cfg(feature = "xz2")]
-    if path.as_ref().extension() == Some(OsStr::new("xz")) {
-        return Format::Xz;
-    }
-    #[cfg(feature = "zstd")]
-    if path.as_ref().extension() == Some(OsStr::new("zst")) {
-        return Format::Zstd;
-    }
-    #[cfg(feature = "lz4")]
-    if path.as_ref().extension() == Some(OsStr::new("lz4")) {
-        return Format::Lz4;
-    }
-    Format::Unknown
+impl<T: std::io::Write> WriteExt for T {}
+
+/// Processed status
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Status {
+    /// No error
+    Ok,
+    /// End of stream
+    StreamEnd,
+    /// More memory is required
+    MemNeeded,
 }
 
-/// Open new reader from file path. File format is suggested from magic bytes and file extension.
+/// Values which indicate the form of flushing to be used when processing data.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Flush {
+    /// No flush. Continue processing input data.
+    None,
+    /// Flush and finish the stream.
+    Finish,
+}
+
+/// Process in-memory stream of data.
 ///
-/// ```
-/// # use autocompress::*;
-/// # use std::io::{self, Read};
-/// #
-/// # fn main() -> io::Result<()> {
-/// # #[cfg(feature = "xz2")] {
-/// let mut buffer = Vec::new();
-/// open("testfiles/plain.txt.xz")?.read_to_end(&mut buffer)?;
-/// assert_eq!(buffer, b"ABCDEFG\r\n1234567");
-/// # }
-/// #  Ok(())
-/// # }
-/// ```
-pub fn open(path: impl AsRef<path::Path>) -> io::Result<read::Decoder<io::BufReader<fs::File>>> {
-    let mut reader = io::BufReader::new(fs::File::open(&path)?);
-    let mut format = suggest_format(&mut reader)?;
-    #[cfg(feature = "brotli")]
-    if format == Format::Unknown && path.as_ref().extension() == Some(OsStr::new("br")) {
-        format = Format::Brotli;
-    }
-    Decoder::new(reader, format)
+/// This type is inspired from [flate2::Compress](https://docs.rs/flate2/1.0.20/flate2/struct.Compress.html).
+/// This type will process input bytes and generate output bytes. The number of processed bytes and
+/// generated bytes can be obtained by [`total_in`](Processor::total_in) and [`total_out`](Processor::total_out) methods.
+/// Example of implementation is available at [`PlainProcessor`], [`GzipCompress`](gzip::GzipCompress) and [`GzipDecompress`](gzip::GzipDecompress).
+pub trait Processor: Unpin {
+    /// Total number of bytes processed
+    fn total_in(&self) -> u64;
+
+    /// Total number of bytes generated
+    fn total_out(&self) -> u64;
+
+    /// Process some input data and generate output data.
+    ///
+    /// If `flush` is [`Flush::Finish`], the processor will try to finish the stream.
+    fn process(&mut self, input: &[u8], output: &mut [u8], flush: Flush) -> Result<Status>;
+
+    /// Reset processor state
+    ///
+    /// `total_in` and `total_out` will be reset to zero.
+    fn reset(&mut self);
 }
 
-/// Open new reader from file path. If path is `None`, standard input is used. File format is suggested from magic bytes and file extension.
+impl Processor for Box<dyn Processor> {
+    fn process(&mut self, input: &[u8], output: &mut [u8], flush: Flush) -> Result<Status> {
+        self.as_mut().process(input, output, flush)
+    }
+
+    fn reset(&mut self) {
+        self.as_mut().reset()
+    }
+
+    fn total_in(&self) -> u64 {
+        self.as_ref().total_in()
+    }
+
+    fn total_out(&self) -> u64 {
+        self.as_ref().total_out()
+    }
+}
+
+/// Pass-through processor
 ///
-/// ```
-/// # use autocompress::*;
-/// # use std::io::{self, Read};
-/// #
-/// # fn main() -> io::Result<()> {
-/// # #[cfg(feature = "xz2")] {
-/// let mut buffer = Vec::new();
-/// open_or_stdin(Some("testfiles/plain.txt.xz"))?.read_to_end(&mut buffer)?;
-/// assert_eq!(buffer, b"ABCDEFG\r\n1234567");
-/// # }
-/// #  Ok(())
-/// # }
-/// ```
-pub fn open_or_stdin(
-    path: Option<impl AsRef<path::Path>>,
-) -> io::Result<read::Decoder<io::BufReader<Box<dyn io::Read>>>> {
-    if let Some(path) = path {
-        let mut reader: io::BufReader<Box<dyn io::Read>> =
-            io::BufReader::new(Box::new(fs::File::open(&path)?));
-        let mut format = suggest_format(&mut reader)?;
-        #[cfg(feature = "brotli")]
-        if format == Format::Unknown && path.as_ref().extension() == Some(OsStr::new("br")) {
-            format = Format::Brotli;
+/// This processor does not compress or decompress data, transfer data as is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct PlainProcessor {
+    total_in: u64,
+    total_out: u64,
+}
+
+impl PlainProcessor {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl Processor for PlainProcessor {
+    fn total_in(&self) -> u64 {
+        self.total_in
+    }
+
+    fn total_out(&self) -> u64 {
+        self.total_out
+    }
+
+    fn process(&mut self, input: &[u8], output: &mut [u8], flush: Flush) -> Result<Status> {
+        let len = std::cmp::min(input.len(), output.len());
+        output[..len].copy_from_slice(&input[..len]);
+        self.total_in += TryInto::<u64>::try_into(len).unwrap();
+        self.total_out += TryInto::<u64>::try_into(len).unwrap();
+        match flush {
+            Flush::None => Ok(Status::Ok),
+            Flush::Finish => Ok(Status::StreamEnd),
         }
-        Decoder::new(reader, format)
-    } else {
-        let mut reader: io::BufReader<Box<dyn io::Read>> =
-            io::BufReader::new(Box::new(io::stdin()));
-        let format = suggest_format(&mut reader)?;
-        Decoder::new(reader, format)
+    }
+
+    fn reset(&mut self) {
+        self.total_in = 0;
+        self.total_out = 0;
     }
 }
 
-/// Create new writer from file path. File format is suggested from file extension.
-///
-/// ```
-/// # use autocompress::*;
-/// # use std::io::{self, Write};
-/// #
-/// # fn main() -> io::Result<()> {
-/// let mut writer = create("create.txt.lz4", CompressionLevel::Default)?;
-/// writer.write_all(b"hello, world")?;
-/// # std::fs::remove_file("create.txt.lz4")?;
-/// #  Ok(())
-/// # }
-/// ```
-pub fn create(
-    path: impl AsRef<path::Path>,
-    level: CompressionLevel,
-) -> io::Result<write::Encoder<fs::File>> {
-    let format = suggest_format_from_path(&path);
-    Encoder::new(fs::File::create(path)?, format, level)
+/// Compression level for compress processors
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CompressionLevel {
+    /// Fastest compression level
+    Fastest,
+    /// Fast compression level
+    Fast,
+    /// Default compression level
+    Default,
+    /// High compression level
+    High,
+    /// Highest compression level
+    Highest,
 }
 
-/// Create new writer from a file path. If a file path is `None`, standard output is used. File format is suggested from file extension.
-///
-/// ```
-/// # use autocompress::*;
-/// # use std::io::{self, Write};
-/// #
-/// # fn main() -> io::Result<()> {
-/// # #[cfg(feature = "lz4")] {
-/// let mut writer = create_or_stdout(Some("create.txt.lz4"), CompressionLevel::Default)?;
-/// writer.write_all(b"hello, world")?;
-/// # std::fs::remove_file("create.txt.lz4")?;
-/// # }
-/// #  Ok(())
-/// # }
-/// ```
-pub fn create_or_stdout(
-    path: Option<impl AsRef<path::Path>>,
-    level: CompressionLevel,
-) -> io::Result<Box<dyn Write + Send>> {
-    if let Some(path) = path {
-        Ok(Box::new(create(path, level)?))
-    } else {
-        Ok(Box::new(io::stdout()))
+impl Default for CompressionLevel {
+    fn default() -> Self {
+        Self::Default
+    }
+}
+
+impl CompressionLevel {
+    /// Fastest compression level
+    pub fn fast() -> Self {
+        Self::Fastest
+    }
+
+    /// Highest compression level
+    pub fn best() -> Self {
+        Self::Highest
+    }
+
+    #[cfg_attr(doc_cfg, doc(cfg(feature = "gzip")))]
+    #[cfg(feature = "flate2")]
+    pub fn flate2(self) -> flate2::Compression {
+        match self {
+            Self::Fastest => flate2::Compression::fast(),
+            Self::Fast => flate2::Compression::new(3),
+            Self::Default => flate2::Compression::default(),
+            Self::High => flate2::Compression::new(7),
+            Self::Highest => flate2::Compression::best(),
+        }
+    }
+
+    #[cfg_attr(doc_cfg, doc(cfg(feature = "bgzip")))]
+    #[cfg(feature = "bgzip")]
+    pub fn bgzip(self) -> ::bgzip::Compression {
+        match self {
+            Self::Fastest => ::bgzip::Compression::fast(),
+            Self::Fast => ::bgzip::Compression::new(3).expect("Unexpected compression level"),
+            Self::Default => ::bgzip::Compression::default(),
+            Self::High => ::bgzip::Compression::new(7).expect("Unexpected compression level"),
+            Self::Highest => ::bgzip::Compression::best(),
+        }
+    }
+
+    #[cfg_attr(doc_cfg, doc(cfg(feature = "bzip2")))]
+    #[cfg(feature = "bzip2")]
+    pub fn bzip2(self) -> ::bzip2::Compression {
+        match self {
+            Self::Fastest => ::bzip2::Compression::fast(),
+            Self::Fast => ::bzip2::Compression::new(3),
+            Self::Default => ::bzip2::Compression::default(),
+            Self::High => ::bzip2::Compression::new(7),
+            Self::Highest => ::bzip2::Compression::best(),
+        }
+    }
+
+    #[cfg_attr(doc_cfg, doc(cfg(feature = "xz")))]
+    #[cfg(feature = "xz")]
+    pub fn xz(self) -> u32 {
+        match self {
+            Self::Fastest => 1,
+            Self::Fast => 3,
+            Self::Default => 6,
+            Self::High => 7,
+            Self::Highest => 9,
+        }
+    }
+
+    #[cfg_attr(doc_cfg, doc(cfg(feature = "zstd")))]
+    #[cfg(feature = "zstd")]
+    pub fn zstd(self) -> i32 {
+        match self {
+            Self::Fastest => 1,
+            Self::Fast => 2,
+            Self::Default => ::zstd::DEFAULT_COMPRESSION_LEVEL,
+            Self::High => 7,
+            Self::Highest => 9,
+        }
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::io::Read;
-
-    #[test]
-    fn test_suggest_format() {
-        assert_eq!(
-            suggest_format(&include_bytes!("../testfiles/plain.txt")[..]).unwrap(),
-            Format::Unknown
-        );
-        #[cfg(feature = "flate2")]
-        assert_eq!(
-            suggest_format(&include_bytes!("../testfiles/plain.txt.gz")[..]).unwrap(),
-            Format::Gzip
-        );
-        #[cfg(feature = "bzip2")]
-        assert_eq!(
-            suggest_format(&include_bytes!("../testfiles/plain.txt.bz2")[..]).unwrap(),
-            Format::Bzip2
-        );
-        #[cfg(feature = "xz2")]
-        assert_eq!(
-            suggest_format(&include_bytes!("../testfiles/plain.txt.xz")[..]).unwrap(),
-            Format::Xz
-        );
-        #[cfg(feature = "zstd")]
-        assert_eq!(
-            suggest_format(&include_bytes!("../testfiles/plain.txt.zst")[..]).unwrap(),
-            Format::Zstd
-        );
-        #[cfg(feature = "lz4")]
-        assert_eq!(
-            suggest_format(&include_bytes!("../testfiles/plain.txt.lz4")[..]).unwrap(),
-            Format::Lz4
-        );
-    }
-
-    #[test]
-    fn test_open() -> io::Result<()> {
-        let expected_bytes = include_bytes!("../testfiles/plain.txt");
-
-        let mut buffer = Vec::new();
-        open("testfiles/plain.txt")?.read_to_end(&mut buffer)?;
-        assert_eq!(buffer, expected_bytes);
-
-        buffer.clear();
-        #[cfg(feature = "brotli")]
-        {
-            open("testfiles/plain.txt.br")?.read_to_end(&mut buffer)?;
-            assert_eq!(buffer, expected_bytes);
-        }
-        buffer.clear();
-        #[cfg(feature = "bzip2")]
-        {
-            open("testfiles/plain.txt.bz2")?.read_to_end(&mut buffer)?;
-            assert_eq!(buffer, expected_bytes);
-        }
-        buffer.clear();
-        #[cfg(feature = "flate2")]
-        {
-            open("testfiles/plain.txt.gz")?.read_to_end(&mut buffer)?;
-            assert_eq!(buffer, expected_bytes);
-        }
-        buffer.clear();
-        #[cfg(feature = "lz4")]
-        {
-            open("testfiles/plain.txt.lz4")?.read_to_end(&mut buffer)?;
-            assert_eq!(buffer, expected_bytes);
-        }
-        buffer.clear();
-        #[cfg(feature = "xz2")]
-        {
-            open("testfiles/plain.txt.xz")?.read_to_end(&mut buffer)?;
-            assert_eq!(buffer, expected_bytes);
-        }
-        buffer.clear();
-        #[cfg(feature = "zstd")]
-        {
-            open("testfiles/plain.txt.zst")?.read_to_end(&mut buffer)?;
-            assert_eq!(buffer, expected_bytes);
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn test_open_or_stdin() -> io::Result<()> {
-        let expected_bytes = include_bytes!("../testfiles/plain.txt");
-
-        let mut buffer = Vec::new();
-        open("testfiles/plain.txt")?.read_to_end(&mut buffer)?;
-        assert_eq!(buffer, expected_bytes);
-
-        buffer.clear();
-        #[cfg(feature = "brotli")]
-        {
-            open_or_stdin(Some("testfiles/plain.txt.br"))?.read_to_end(&mut buffer)?;
-            assert_eq!(buffer, expected_bytes);
-        }
-        buffer.clear();
-        #[cfg(feature = "bzip2")]
-        {
-            open_or_stdin(Some("testfiles/plain.txt.bz2"))?.read_to_end(&mut buffer)?;
-            assert_eq!(buffer, expected_bytes);
-        }
-        buffer.clear();
-        #[cfg(feature = "flate2")]
-        {
-            open_or_stdin(Some("testfiles/plain.txt.gz"))?.read_to_end(&mut buffer)?;
-            assert_eq!(buffer, expected_bytes);
-        }
-        buffer.clear();
-        #[cfg(feature = "lz4")]
-        {
-            open_or_stdin(Some("testfiles/plain.txt.lz4"))?.read_to_end(&mut buffer)?;
-            assert_eq!(buffer, expected_bytes);
-        }
-        buffer.clear();
-        #[cfg(feature = "xz2")]
-        {
-            open_or_stdin(Some("testfiles/plain.txt.xz"))?.read_to_end(&mut buffer)?;
-            assert_eq!(buffer, expected_bytes);
-        }
-        buffer.clear();
-        #[cfg(feature = "zstd")]
-        {
-            open_or_stdin(Some("testfiles/plain.txt.zst"))?.read_to_end(&mut buffer)?;
-            assert_eq!(buffer, expected_bytes);
-        }
-        Ok(())
-    }
-
-    use temp_testdir::TempDir;
-
-    #[cfg(feature = "flate2")]
-    #[test]
-    fn test_write_flate2() -> io::Result<()> {
-        let expected_bytes = include_bytes!("../testfiles/plain.txt");
-        let temp = TempDir::default();
-        let mut buffer = Vec::<u8>::new();
-
-        let mut writer = create(temp.join("plain.txt.gz"), CompressionLevel::Default)?;
-        writer.write_all(&expected_bytes[..])?;
-        std::mem::drop(writer);
-        Decoder::new(fs::File::open(temp.join("plain.txt.gz"))?, Format::Gzip)?
-            .read_to_end(&mut buffer)?;
-        assert_eq!(buffer, expected_bytes);
-        Ok(())
-    }
-
-    #[cfg(feature = "xz2")]
-    #[test]
-    fn test_write_xz() -> io::Result<()> {
-        let expected_bytes = include_bytes!("../testfiles/plain.txt");
-        let temp = TempDir::default();
-        let mut buffer = Vec::<u8>::new();
-
-        let mut writer = create(temp.join("plain.txt.xz"), CompressionLevel::Default)?;
-        writer.write_all(&expected_bytes[..])?;
-        std::mem::drop(writer);
-        Decoder::new(fs::File::open(temp.join("plain.txt.xz"))?, Format::Xz)?
-            .read_to_end(&mut buffer)?;
-        assert_eq!(buffer, expected_bytes);
-        Ok(())
-    }
-
-    #[cfg(feature = "bzip2")]
-    #[test]
-    fn test_write_bzip2() -> io::Result<()> {
-        let expected_bytes = include_bytes!("../testfiles/plain.txt");
-        let temp = TempDir::default();
-        let mut buffer = Vec::<u8>::new();
-
-        let mut writer = create(temp.join("plain.txt.bz2"), CompressionLevel::Default)?;
-        writer.write_all(&expected_bytes[..])?;
-        std::mem::drop(writer);
-        Decoder::new(fs::File::open(temp.join("plain.txt.bz2"))?, Format::Bzip2)?
-            .read_to_end(&mut buffer)?;
-        assert_eq!(buffer, expected_bytes);
-        Ok(())
-    }
-
-    #[cfg(feature = "zstd")]
-    #[test]
-    fn test_write_zstd() -> io::Result<()> {
-        let expected_bytes = include_bytes!("../testfiles/plain.txt");
-        let temp = TempDir::default();
-        let mut buffer = Vec::<u8>::new();
-
-        let mut writer = create(temp.join("plain.txt.zst"), CompressionLevel::Default)?;
-        writer.write_all(&expected_bytes[..])?;
-        std::mem::drop(writer);
-        Decoder::new(fs::File::open(temp.join("plain.txt.zst"))?, Format::Zstd)?
-            .read_to_end(&mut buffer)?;
-        assert_eq!(buffer, expected_bytes);
-        Ok(())
-    }
-
-    #[cfg(feature = "brotli")]
-    #[test]
-    fn test_write_brotli() -> io::Result<()> {
-        let expected_bytes = include_bytes!("../testfiles/plain.txt");
-        let temp = TempDir::default();
-        let mut buffer = Vec::<u8>::new();
-
-        let mut writer = create(temp.join("plain.txt.br"), CompressionLevel::Default)?;
-        writer.write_all(&expected_bytes[..])?;
-        std::mem::drop(writer);
-        Decoder::new(fs::File::open(temp.join("plain.txt.br"))?, Format::Brotli)?
-            .read_to_end(&mut buffer)?;
-        assert_eq!(buffer, expected_bytes);
-        Ok(())
-    }
-
-    #[cfg(feature = "lz4")]
-    #[test]
-    fn test_write_lz4() -> io::Result<()> {
-        let expected_bytes = include_bytes!("../testfiles/plain.txt");
-        let temp = TempDir::default();
-        let mut buffer = Vec::<u8>::new();
-
-        let mut writer = create(temp.join("plain.txt.lz4"), CompressionLevel::Default)?;
-        writer.write_all(&expected_bytes[..])?;
-        std::mem::drop(writer);
-        Decoder::new(fs::File::open(temp.join("plain.txt.lz4"))?, Format::Lz4)?
-            .read_to_end(&mut buffer)?;
-        assert_eq!(buffer, expected_bytes);
-        Ok(())
-    }
-
-    #[test]
-    fn test_write_plain() -> io::Result<()> {
-        let expected_bytes = include_bytes!("../testfiles/plain.txt");
-        let temp = TempDir::default();
-        let mut buffer = Vec::<u8>::new();
-
-        let mut writer = create(temp.join("plain.txt"), CompressionLevel::Default)?;
-        writer.write_all(&expected_bytes[..])?;
-        std::mem::drop(writer);
-        Decoder::new(fs::File::open(temp.join("plain.txt"))?, Format::Unknown)?
-            .read_to_end(&mut buffer)?;
-        assert_eq!(buffer, expected_bytes);
-        Ok(())
-    }
-}
+mod tests;
