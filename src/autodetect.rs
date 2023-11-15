@@ -449,6 +449,7 @@ pub async fn autodetect_async_create_or_stdout<P: AsRef<Path>>(
 #[cfg(test)]
 mod test {
     use super::*;
+    use anyhow::Context;
     use std::fs::File;
     use std::io::BufReader;
     #[cfg(feature = "tokio")]
@@ -600,16 +601,25 @@ mod test {
             let output_filename =
                 format!("target/test_autodetect_write.{}", one_format.extension());
             let mut writer = autodetect_create(&output_filename, CompressionLevel::Default)?;
-            writer.write_all(&expected_data)?;
-            //writer.flush()?;
+            writer
+                .write_all(&expected_data)
+                .with_context(|| format!("write_all error: {:?}", one_format))?;
+            writer
+                .flush()
+                .with_context(|| format!("flush error: {:?}", one_format))?;
             std::mem::drop(writer);
 
             let mut read_data = Vec::new();
             let mut reader = ProcessorReader::with_processor(
                 one_format.decompressor(),
-                std::io::BufReader::new(File::open(&output_filename)?),
+                std::io::BufReader::new(
+                    File::open(&output_filename)
+                        .with_context(|| format!("file open error: {:?}", one_format))?,
+                ),
             );
-            reader.read_to_end(&mut read_data)?;
+            reader
+                .read_to_end(&mut read_data)
+                .with_context(|| format!("read_to_end error: {:?}", one_format))?;
             assert_eq!(read_data.len(), expected_data.len());
             assert_eq!(read_data, expected_data);
         }
@@ -644,17 +654,30 @@ mod test {
                 format!("target/test_autodetect_write.{}", one_format.extension());
             let mut writer =
                 autodetect_async_create(&output_filename, CompressionLevel::Default).await?;
-            writer.write_all(&expected_data).await?;
-            writer.flush().await?;
+            writer
+                .write_all(&expected_data)
+                .await
+                .with_context(|| format!("write_all: {:?}", one_format))?;
+            writer
+                .flush()
+                .await
+                .with_context(|| format!("flush error: {:?}", one_format))?;
             std::mem::drop(writer);
             std::thread::sleep(std::time::Duration::from_millis(100));
 
             let mut read_data = Vec::new();
             let mut reader = AsyncProcessorReader::with_processor(
                 one_format.decompressor(),
-                tokio::io::BufReader::new(tokio::fs::File::open(&output_filename).await?),
+                tokio::io::BufReader::new(
+                    tokio::fs::File::open(&output_filename)
+                        .await
+                        .with_context(|| format!("file open error: {:?}", one_format))?,
+                ),
             );
-            reader.read_to_end(&mut read_data).await?;
+            reader
+                .read_to_end(&mut read_data)
+                .await
+                .with_context(|| format!("read_to_end error: {:?}", one_format))?;
             assert_eq!(read_data.len(), expected_data.len());
             assert_eq!(read_data, expected_data);
         }
@@ -665,6 +688,8 @@ mod test {
     #[cfg(feature = "rayon")]
     #[test]
     fn test_file_write_rayon() -> anyhow::Result<()> {
+        use anyhow::Context;
+
         use crate::io::{RayonReader, RayonWriter};
 
         let mut expected_data = Vec::new();
@@ -688,8 +713,12 @@ mod test {
                 output_filename.clone(),
                 CompressionLevel::Default,
             )?);
-            writer.write_all(&expected_data)?;
-            writer.flush()?;
+            writer
+                .write_all(&expected_data)
+                .with_context(|| format!("write_all error: {:?}", one_format))?;
+            writer
+                .flush()
+                .with_context(|| format!("flush error: {:?}", one_format))?;
             std::mem::drop(writer);
             std::thread::sleep(std::time::Duration::from_millis(100));
 
@@ -698,7 +727,9 @@ mod test {
                 one_format.decompressor(),
                 std::io::BufReader::new(File::open(&output_filename)?),
             ));
-            reader.read_to_end(&mut read_data)?;
+            reader
+                .read_to_end(&mut read_data)
+                .with_context(|| format!("read_to_end error: {:?}", one_format))?;
             assert_eq!(read_data.len(), expected_data.len());
             assert_eq!(read_data, expected_data);
         }
