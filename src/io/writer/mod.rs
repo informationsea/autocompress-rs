@@ -307,18 +307,6 @@ impl<P: Processor, W: AsyncWrite> AsyncProcessorWriter<P, W> {
             is_flushed: false,
         }
     }
-
-    /// Unwraps this AsyncProcessorWriter<P, W>, returning the underlying writer.
-    pub async fn into_inner_writer(self) -> W {
-        if !self.is_flushed {
-            panic!("AsyncProcessorWriter is dropped without shutdown")
-        }
-        loop {
-            if let Some(writer) = self.inner.lock().await.take() {
-                return writer.writer;
-            }
-        }
-    }
 }
 
 #[cfg(feature = "tokio")]

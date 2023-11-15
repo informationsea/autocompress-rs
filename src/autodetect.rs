@@ -677,8 +677,6 @@ mod test {
                 .flush()
                 .await
                 .with_context(|| format!("flush error: {:?}", one_format))?;
-            let inner_writer = writer.into_inner_writer().await;
-            inner_writer.sync_all().await?;
 
             let mut read_data = Vec::new();
             let mut reader = AsyncProcessorReader::with_processor(
