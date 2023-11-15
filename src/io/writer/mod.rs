@@ -34,7 +34,7 @@ const PROCESSOR_WRITER_DEFAULT_BUFFER: usize = 1024 * 1024;
 /// ```
 pub struct ProcessorWriter<P: Processor, W: Write> {
     processor: P,
-    writer: W,
+    writer: Option<W>,
     buffer: Vec<u8>,
 }
 
@@ -45,7 +45,7 @@ impl<P: Processor + Default, W: Write> ProcessorWriter<P, W> {
     pub fn new(writer: W) -> Self {
         Self {
             processor: P::default(),
-            writer,
+            writer: Some(writer),
             buffer: vec![0u8; PROCESSOR_WRITER_DEFAULT_BUFFER],
         }
     }
@@ -72,7 +72,7 @@ impl<P: Processor, W: Write> ProcessorWriter<P, W> {
     pub fn with_processor(processor: P, writer: W) -> Self {
         Self {
             processor,
-            writer,
+            writer: Some(writer),
             buffer: vec![0u8; PROCESSOR_WRITER_DEFAULT_BUFFER],
         }
     }
@@ -81,9 +81,18 @@ impl<P: Processor, W: Write> ProcessorWriter<P, W> {
     pub fn with_buffer_size(processor: P, writer: W, buffer_size: usize) -> Self {
         Self {
             processor,
-            writer,
+            writer: Some(writer),
             buffer: vec![0u8; buffer_size],
         }
+    }
+
+    /// Unwraps this ProcessorWriter<P, W>, returning the underlying writer.
+    pub fn into_inner_writer(mut self) -> W {
+        if self.processor.total_in() != 0 {
+            let _ = self.flush().expect("Failed to close ProcessorWriter");
+        }
+        self.processor.reset();
+        self.writer.take().unwrap()
     }
 
     /// Total number of bytes processed by the processor.
@@ -129,6 +138,8 @@ impl<P: Processor, W: Write> Write for ProcessorWriter<P, W> {
             // dbg!(buf.len());
             //dbg!(processed_out, status);
             self.writer
+                .as_mut()
+                .unwrap()
                 .write_all(&self.buffer[..TryInto::<usize>::try_into(processed_out).unwrap()])?;
             write_size += TryInto::<usize>::try_into(processed_in).unwrap();
             //dbg!("wrote data");
@@ -165,7 +176,7 @@ impl<P: Processor, W: Write> Write for ProcessorWriter<P, W> {
                     .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
                 let processed_out = self.processor.total_out() - original_total_out;
                 //dbg!(processed_out, status);
-                self.writer.write_all(
+                self.writer.as_mut().unwrap().write_all(
                     &self.buffer[..TryInto::<usize>::try_into(processed_out).unwrap()],
                 )?;
                 match status {
@@ -294,6 +305,18 @@ impl<P: Processor, W: AsyncWrite> AsyncProcessorWriter<P, W> {
                 unwritten_buffer_size: 0,
             })),
             is_flushed: false,
+        }
+    }
+
+    /// Unwraps this AsyncProcessorWriter<P, W>, returning the underlying writer.
+    pub async fn into_inner_writer(self) -> W {
+        if !self.is_flushed {
+            panic!("AsyncProcessorWriter is dropped without shutdown")
+        }
+        loop {
+            if let Some(writer) = self.inner.lock().await.take() {
+                return writer.writer;
+            }
         }
     }
 }

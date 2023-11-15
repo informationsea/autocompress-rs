@@ -74,6 +74,11 @@ impl<P: Processor, R: BufRead> ProcessorReader<P, R> {
     pub fn with_processor(processor: P, reader: R) -> Self {
         Self { processor, reader }
     }
+
+    /// Unwraps this ProcessorReader<P, R>, returning the underlying reader.
+    pub fn into_inner_reader(self) -> R {
+        self.reader
+    }
 }
 
 impl<P: Processor, R: BufRead> Read for ProcessorReader<P, R> {
@@ -157,6 +162,11 @@ impl<P: Processor + Default, R: AsyncBufRead + Unpin> AsyncProcessorReader<P, R>
                 reader,
             })),
         }
+    }
+
+    /// Unwraps this AsyncProcessorReader<P, R>, returning the underlying reader.
+    pub async fn into_inner_reader(self) -> R {
+        self.inner.lock().await.take().unwrap().reader
     }
 }
 

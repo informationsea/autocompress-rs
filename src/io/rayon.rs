@@ -225,11 +225,19 @@ impl<R: Read + Send + 'static, TB: ThreadBuilder> RayonReader<R, TB> {
                 }
                 Err(e) => {
                     self.eof = true;
+                    send_or_yield(&self.sender, (reader, new_buf, Ok(())))
+                        .expect("Failed to send buffer");
                     return Err(e);
                 }
             }
         }
         Ok(())
+    }
+
+    pub fn into_inner(self) -> R {
+        let (reader, _new_buf, _result) =
+            receive_or_yield(&self.receiver).expect("Failed to receive read buffer");
+        reader
     }
 }
 
@@ -250,9 +258,14 @@ impl<R: Read + Send + 'static, TB: ThreadBuilder> Read for RayonReader<R, TB> {
 
 impl<R: Read + Send + 'static, TB: ThreadBuilder> BufRead for RayonReader<R, TB> {
     fn consume(&mut self, amt: usize) {
-        self.buf.consume(amt);
+        if !self.eof {
+            self.buf.consume(amt);
+        }
     }
     fn fill_buf(&mut self) -> Result<&[u8]> {
+        if self.eof {
+            return Ok(&[]);
+        }
         self.fill_buffer()?;
         Ok(self.buf.filled_buf())
     }
@@ -284,6 +297,7 @@ pub struct RayonWriter<W: Write + Send + 'static, TB: ThreadBuilder> {
     buf: Buf,
     waiting: Option<(W, Buf)>,
     thread_builder: TB,
+    dropped: bool,
 }
 
 impl<W: Write + Send + 'static> RayonWriter<W, RayonThreadBuilder> {
@@ -310,6 +324,7 @@ impl<W: Write + Send + 'static, TB: ThreadBuilder> RayonWriter<W, TB> {
             buf: Buf::new(capacity),
             waiting: Some((writer, Buf::new(capacity))),
             thread_builder,
+            dropped: false,
         }
     }
 
@@ -340,10 +355,20 @@ impl<W: Write + Send + 'static, TB: ThreadBuilder> RayonWriter<W, TB> {
         });
         Ok(())
     }
+
+    pub fn into_inner_writer(mut self) -> W {
+        self.dispatch_write(true).expect("Failed to dispatch write");
+        self.wait_buffer().expect("Failed to wait buffer");
+        self.dropped = true;
+        self.waiting.take().unwrap().0
+    }
 }
 
 impl<W: Write + Send + 'static, TB: ThreadBuilder> Drop for RayonWriter<W, TB> {
     fn drop(&mut self) {
+        if self.dropped {
+            return;
+        }
         if !self.buf.is_empty() {
             self.flush().expect("Failed to flush");
         }
@@ -440,7 +465,7 @@ mod test {
                     101,
                 );
                 writer.write_all(&expected_data[..]).unwrap();
-                std::mem::drop(writer);
+                writer.into_inner_writer().sync_all().unwrap();
 
                 std::thread::sleep(std::time::Duration::from_millis(10));
                 let read_buffer = std::fs::read(path).unwrap();

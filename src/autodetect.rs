@@ -171,7 +171,9 @@ impl FileFormat {
 /// # Ok(())
 /// # }
 /// ```
-pub fn autodetect_reader<R: Read>(reader: R) -> Result<impl Read> {
+pub fn autodetect_reader<R: Read>(
+    reader: R,
+) -> Result<ProcessorReader<Box<dyn Processor + Send + Unpin>, std::io::BufReader<R>>> {
     autodetect_buf_reader(BufReader::new(reader))
 }
 
@@ -192,7 +194,9 @@ pub fn autodetect_reader<R: Read>(reader: R) -> Result<impl Read> {
 /// # Ok(())
 /// # }
 /// ```
-pub fn autodetect_buf_reader<R: BufRead>(mut reader: R) -> Result<impl Read> {
+pub fn autodetect_buf_reader<R: BufRead>(
+    mut reader: R,
+) -> Result<ProcessorReader<Box<dyn Processor + Send + Unpin>, R>> {
     let decompressor = if let Some(format) = FileFormat::from_buf_reader(&mut reader)? {
         format.decompressor()
     } else {
@@ -217,7 +221,9 @@ pub fn autodetect_buf_reader<R: BufRead>(mut reader: R) -> Result<impl Read> {
 /// # Ok(())
 /// # }
 /// ```
-pub fn autodetect_open<P: AsRef<std::path::Path>>(path: P) -> Result<impl Read + Send + Unpin> {
+pub fn autodetect_open<P: AsRef<std::path::Path>>(
+    path: P,
+) -> Result<ProcessorReader<Box<dyn Processor + Send + Unpin>, std::io::BufReader<std::fs::File>>> {
     let file = std::fs::File::open(path)?;
     autodetect_buf_reader(std::io::BufReader::new(file))
 }
@@ -255,7 +261,7 @@ pub fn autodetect_open_or_stdin<P: AsRef<Path>>(
 /// Automatically select suitable decoder from magic number from [`AsyncBufRead`].
 pub async fn autodetect_async_buf_reader<R: AsyncBufRead + Unpin>(
     mut reader: R,
-) -> Result<impl AsyncRead> {
+) -> Result<AsyncProcessorReader<Box<dyn Processor + Send + Unpin>, R>> {
     let decompressor = if let Some(format) = FileFormat::from_async_buf_reader(&mut reader).await? {
         format.decompressor()
     } else {
@@ -267,7 +273,11 @@ pub async fn autodetect_async_buf_reader<R: AsyncBufRead + Unpin>(
 #[cfg(feature = "tokio_fs")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "tokio_fs")))]
 /// Open a file and automatically select a suitable decoder from magic number.
-pub async fn autodetect_async_open<P: AsRef<std::path::Path>>(path: P) -> Result<impl AsyncRead> {
+pub async fn autodetect_async_open<P: AsRef<std::path::Path>>(
+    path: P,
+) -> Result<
+    AsyncProcessorReader<Box<dyn Processor + Send + Unpin>, tokio::io::BufReader<tokio::fs::File>>,
+> {
     let file = tokio::fs::File::open(path).await?;
     autodetect_async_buf_reader(tokio::io::BufReader::new(file)).await
 }
@@ -308,7 +318,7 @@ pub async fn autodetect_async_open_or_stdin<P: AsRef<Path>>(
 pub fn autodetect_create<P: AsRef<Path>>(
     path: P,
     compression_level: CompressionLevel,
-) -> Result<impl Write + Unpin + Send> {
+) -> Result<ProcessorWriter<Box<dyn Processor + Send + Unpin>, File>> {
     let compressor = if let Some(format) = FileFormat::from_path(path.as_ref()) {
         format.compressor(compression_level)
     } else {
@@ -328,7 +338,7 @@ pub fn autodetect_create<P: AsRef<Path>>(
 pub fn autodetect_create_prefer_bgzip<P: AsRef<Path>>(
     path: P,
     compression_level: CompressionLevel,
-) -> Result<impl Write + Unpin + Send> {
+) -> Result<ProcessorWriter<Box<dyn Processor + Send + Unpin>, File>> {
     let compressor = if let Some(format) = FileFormat::from_path(path.as_ref()) {
         match format {
             FileFormat::Gzip => Box::new(BgzipCompress::new(compression_level.bgzip())),
@@ -347,7 +357,7 @@ pub fn autodetect_create_prefer_bgzip<P: AsRef<Path>>(
 pub fn autodetect_create_or_stdout<P: AsRef<Path>>(
     path: Option<P>,
     compression_level: CompressionLevel,
-) -> Result<impl Write + Send + Unpin> {
+) -> Result<ProcessorWriter<Box<dyn Processor + Send + Unpin>, Box<dyn Write + Send + Unpin>>> {
     let compressor = if let Some(path) = path.as_ref() {
         if let Some(format) = FileFormat::from_path(path.as_ref()) {
             format.compressor(compression_level)
@@ -375,7 +385,7 @@ pub fn autodetect_create_or_stdout<P: AsRef<Path>>(
 pub fn autodetect_create_or_stdout_prefer_bgzip<P: AsRef<Path>>(
     path: Option<P>,
     compression_level: CompressionLevel,
-) -> Result<impl Write + Send + Unpin> {
+) -> Result<ProcessorWriter<Box<dyn Processor + Send + Unpin>, Box<dyn Write + Send + Unpin>>> {
     use std::io::IsTerminal;
 
     let compressor: Box<dyn Processor + Send + Unpin> = if let Some(path) = path.as_ref() {
@@ -409,7 +419,7 @@ pub fn autodetect_create_or_stdout_prefer_bgzip<P: AsRef<Path>>(
 pub async fn autodetect_async_create<P: AsRef<Path>>(
     path: P,
     compression_level: CompressionLevel,
-) -> Result<impl AsyncWrite> {
+) -> Result<AsyncProcessorWriter<Box<dyn Processor + Send + Unpin>, tokio::fs::File>> {
     let compressor = if let Some(format) = FileFormat::from_path(path.as_ref()) {
         format.compressor(compression_level)
     } else {
@@ -427,7 +437,9 @@ pub async fn autodetect_async_create<P: AsRef<Path>>(
 pub async fn autodetect_async_create_or_stdout<P: AsRef<Path>>(
     path: Option<P>,
     compression_level: CompressionLevel,
-) -> Result<impl AsyncWrite> {
+) -> Result<
+    AsyncProcessorWriter<Box<dyn Processor + Send + Unpin>, std::pin::Pin<Box<dyn AsyncWrite>>>,
+> {
     let compressor = if let Some(path) = path.as_ref() {
         if let Some(format) = FileFormat::from_path(path.as_ref()) {
             format.compressor(compression_level)
@@ -607,7 +619,8 @@ mod test {
             writer
                 .flush()
                 .with_context(|| format!("flush error: {:?}", one_format))?;
-            std::mem::drop(writer);
+            let inner_writer = writer.into_inner_writer();
+            inner_writer.sync_all()?;
 
             let mut read_data = Vec::new();
             let mut reader = ProcessorReader::with_processor(
@@ -650,8 +663,10 @@ mod test {
             #[cfg(feature = "zstd")]
             FileFormat::Zstd,
         ] {
-            let output_filename =
-                format!("target/test_autodetect_write.{}", one_format.extension());
+            let output_filename = format!(
+                "target/test_autodetect_async_write.{}",
+                one_format.extension()
+            );
             let mut writer =
                 autodetect_async_create(&output_filename, CompressionLevel::Default).await?;
             writer
@@ -662,8 +677,8 @@ mod test {
                 .flush()
                 .await
                 .with_context(|| format!("flush error: {:?}", one_format))?;
-            std::mem::drop(writer);
-            std::thread::sleep(std::time::Duration::from_millis(100));
+            let inner_writer = writer.into_inner_writer().await;
+            inner_writer.sync_all().await?;
 
             let mut read_data = Vec::new();
             let mut reader = AsyncProcessorReader::with_processor(
@@ -707,8 +722,10 @@ mod test {
             #[cfg(feature = "zstd")]
             FileFormat::Zstd,
         ] {
-            let output_filename =
-                format!("target/test_autodetect_write.{}", one_format.extension());
+            let output_filename = format!(
+                "target/test_autodetect_rayon_write.{}",
+                one_format.extension()
+            );
             let mut writer = RayonWriter::new(autodetect_create(
                 output_filename.clone(),
                 CompressionLevel::Default,
