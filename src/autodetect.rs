@@ -677,6 +677,7 @@ mod test {
                 .flush()
                 .await
                 .with_context(|| format!("flush error: {:?}", one_format))?;
+            std::thread::sleep(std::time::Duration::from_millis(100));
 
             let mut read_data = Vec::new();
             let mut reader = AsyncProcessorReader::with_processor(
