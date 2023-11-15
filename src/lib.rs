@@ -182,6 +182,24 @@ impl Processor for Box<dyn Processor> {
     }
 }
 
+impl Processor for Box<dyn Processor + Unpin + Send> {
+    fn process(&mut self, input: &[u8], output: &mut [u8], flush: Flush) -> Result<Status> {
+        self.as_mut().process(input, output, flush)
+    }
+
+    fn reset(&mut self) {
+        self.as_mut().reset()
+    }
+
+    fn total_in(&self) -> u64 {
+        self.as_ref().total_in()
+    }
+
+    fn total_out(&self) -> u64 {
+        self.as_ref().total_out()
+    }
+}
+
 /// Pass-through processor
 ///
 /// This processor does not compress or decompress data, transfer data as is.

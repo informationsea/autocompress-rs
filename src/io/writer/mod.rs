@@ -15,15 +15,19 @@ const PROCESSOR_WRITER_DEFAULT_BUFFER: usize = 1024 * 1024;
 /// - `W`: The type of the [`Write`] that the processed data is written to.
 ///
 /// ## Example
-/// ```ignore
+/// ```
 /// # use std::io::prelude::*;
 /// # use std::fs::File;
 /// use autocompress::io::ProcessorWriter;
+/// # #[cfg(feature = "zstd")]
 /// use autocompress::zstd::ZstdCompress;
 ///
 /// # fn main() -> anyhow::Result<()> {
+/// # #[cfg(feature = "zstd")]
 /// let file_writer = File::create("target/doc-io-write.zst")?;
+/// # #[cfg(feature = "zstd")]
 /// let mut zstd_writer = ProcessorWriter::<ZstdCompress, _>::new(file_writer);
+/// # #[cfg(feature = "zstd")]
 /// zstd_writer.write_all(&b"Hello, world!"[..])?;
 /// # Ok(())
 /// # }
@@ -207,13 +211,18 @@ struct AsyncProcessorWriterInner<P: Processor, W: AsyncWrite> {
 /// # use tokio::fs::File;
 /// # use tokio::io::AsyncWriteExt;
 /// use autocompress::io::AsyncProcessorWriter;
+/// # #[cfg(feature = "zstd")]
 /// use autocompress::zstd::ZstdCompress;
 ///
 /// # #[tokio::main]
 /// # async fn main() -> anyhow::Result<()> {
+/// # #[cfg(feature = "zstd")]
 /// let file_writer = File::create("target/doc-io-async-write.zst").await?;
+/// # #[cfg(feature = "zstd")]
 /// let mut zstd_writer = AsyncProcessorWriter::<ZstdCompress, _>::new(file_writer);
+/// # #[cfg(feature = "zstd")]
 /// zstd_writer.write_all(&b"Hello, world!"[..]).await?;
+/// # #[cfg(feature = "zstd")]
 /// zstd_writer.shutdown().await?;
 /// # Ok(())
 /// # }
@@ -246,14 +255,20 @@ impl<P: Processor, W: AsyncWrite> AsyncProcessorWriter<P, W> {
     /// # use tokio::fs::File;
     /// # use tokio::io::AsyncWriteExt;
     /// use autocompress::io::AsyncProcessorWriter;
+    /// # #[cfg(feature = "zstd")]
     /// use autocompress::zstd::ZstdCompress;
     ///
     /// # #[tokio::main]
     /// # async fn main() -> anyhow::Result<()> {
+    /// # #[cfg(feature = "zstd")]
     /// let file_writer = File::create("target/doc-io-async-write-with-processor.zst").await?;
+    /// # #[cfg(feature = "zstd")]
     /// let zstd_compress = ZstdCompress::new(1)?;
+    /// # #[cfg(feature = "zstd")]
     /// let mut zstd_writer = AsyncProcessorWriter::with_processor(zstd_compress, file_writer);
+    /// # #[cfg(feature = "zstd")]
     /// zstd_writer.write_all(&b"Hello, world!"[..]).await?;
+    /// # #[cfg(feature = "zstd")]
     /// zstd_writer.shutdown().await?;
     /// # Ok(())
     /// # }

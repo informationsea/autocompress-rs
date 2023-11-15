@@ -126,13 +126,18 @@ struct AsyncProcessorReaderInner<P: Processor, R: AsyncBufRead + Unpin> {
 /// # use tokio::io::BufReader;
 /// # use tokio::fs::File;
 /// use autocompress::io::AsyncProcessorReader;
+/// # #[cfg(feature = "zstd")]
 /// use autocompress::zstd::ZstdDecompress;
 ///
 /// # #[tokio::main]
 /// # async fn main() -> anyhow::Result<()> {
+/// # #[cfg(feature = "zstd")]
 /// let buf_reader = BufReader::new(File::open("testfiles/sqlite3.c.zst").await?);
+/// # #[cfg(feature = "zstd")]
 /// let mut zstd_reader = AsyncProcessorReader::<ZstdDecompress, _>::new(buf_reader);
+/// # #[cfg(feature = "zstd")]
 /// let mut buf = Vec::new();
+/// # #[cfg(feature = "zstd")]
 /// zstd_reader.read_to_end(&mut buf).await?;
 /// # Ok(())
 /// # }

@@ -1,5 +1,15 @@
+use std::sync::atomic::AtomicU64;
+
 use crate::{CompressionLevel, Error, Flush, Processor, Result};
+use once_cell::sync::Lazy;
 use xz2::stream::Status;
+
+pub const DEFAULT_XZ_MEM_SIZE: u64 = 50_000_000;
+static DECOMPRESS_XZ_MEM_SIZE: Lazy<AtomicU64> = Lazy::new(|| AtomicU64::new(DEFAULT_XZ_MEM_SIZE));
+
+pub fn set_default_decompress_mem_size(mem_size: u64) {
+    DECOMPRESS_XZ_MEM_SIZE.swap(mem_size, std::sync::atomic::Ordering::Relaxed);
+}
 
 /// `XzCompressWriter` is a struct that allows compression of data using the Xz format.
 ///
@@ -120,7 +130,7 @@ impl XzDecompress {
 
 impl Default for XzDecompress {
     fn default() -> Self {
-        Self::new(10_000_000).unwrap()
+        Self::new(DECOMPRESS_XZ_MEM_SIZE.load(std::sync::atomic::Ordering::Relaxed)).unwrap()
     }
 }
 

@@ -55,6 +55,21 @@ pub enum FileFormat {
 }
 
 impl FileFormat {
+    pub fn extension(self) -> &'static str {
+        match self {
+            #[cfg(feature = "flate2")]
+            Self::Gzip => "gz",
+            #[cfg(feature = "bgzip")]
+            Self::BGZip => "bgz",
+            #[cfg(feature = "bzip2")]
+            Self::Bzip2 => "bz2",
+            #[cfg(feature = "xz")]
+            Self::Xz => "xz",
+            #[cfg(feature = "zstd")]
+            Self::Zstd => "zst",
+        }
+    }
+
     pub fn from_path<P: AsRef<Path>>(path: P) -> Option<Self> {
         let ext = path.as_ref().extension().and_then(|s| s.to_str());
         match ext {
@@ -105,7 +120,10 @@ impl FileFormat {
         Ok(Self::from_buf(signature))
     }
 
-    pub fn compressor(self, compression_level: CompressionLevel) -> Box<dyn Processor> {
+    pub fn compressor(
+        self,
+        compression_level: CompressionLevel,
+    ) -> Box<dyn Processor + Unpin + Send> {
         match self {
             #[cfg(feature = "flate2")]
             Self::Gzip => Box::new(GzipCompress::new(compression_level.flate2())),
@@ -120,7 +138,7 @@ impl FileFormat {
         }
     }
 
-    pub fn decompressor(self) -> Box<dyn Processor> {
+    pub fn decompressor(self) -> Box<dyn Processor + Unpin + Send> {
         match self {
             #[cfg(feature = "flate2")]
             Self::Gzip => Box::new(GzipDecompress::new()),
@@ -199,7 +217,7 @@ pub fn autodetect_buf_reader<R: BufRead>(mut reader: R) -> Result<impl Read> {
 /// # Ok(())
 /// # }
 /// ```
-pub fn autodetect_open<P: AsRef<std::path::Path>>(path: P) -> Result<impl Read> {
+pub fn autodetect_open<P: AsRef<std::path::Path>>(path: P) -> Result<impl Read + Send + Unpin> {
     let file = std::fs::File::open(path)?;
     autodetect_buf_reader(std::io::BufReader::new(file))
 }
@@ -221,11 +239,13 @@ pub fn autodetect_open<P: AsRef<std::path::Path>>(path: P) -> Result<impl Read> 
 /// # Ok(())
 /// # }
 /// ```
-pub fn autodetect_open_or_stdin<P: AsRef<Path>>(path: Option<P>) -> Result<impl Read> {
-    let file: Box<dyn BufRead> = if let Some(path) = path.as_ref() {
+pub fn autodetect_open_or_stdin<P: AsRef<Path>>(
+    path: Option<P>,
+) -> Result<impl Read + Send + Unpin> {
+    let file: Box<dyn BufRead + Send + Unpin> = if let Some(path) = path.as_ref() {
         Box::new(std::io::BufReader::new(std::fs::File::open(path)?))
     } else {
-        Box::new(std::io::stdin().lock())
+        Box::new(std::io::BufReader::new(std::io::stdin()))
     };
     autodetect_buf_reader(file)
 }
@@ -288,7 +308,7 @@ pub async fn autodetect_async_open_or_stdin<P: AsRef<Path>>(
 pub fn autodetect_create<P: AsRef<Path>>(
     path: P,
     compression_level: CompressionLevel,
-) -> Result<impl Write> {
+) -> Result<impl Write + Unpin + Send> {
     let compressor = if let Some(format) = FileFormat::from_path(path.as_ref()) {
         format.compressor(compression_level)
     } else {
@@ -308,7 +328,7 @@ pub fn autodetect_create<P: AsRef<Path>>(
 pub fn autodetect_create_prefer_bgzip<P: AsRef<Path>>(
     path: P,
     compression_level: CompressionLevel,
-) -> Result<impl Write> {
+) -> Result<impl Write + Unpin + Send> {
     let compressor = if let Some(format) = FileFormat::from_path(path.as_ref()) {
         match format {
             FileFormat::Gzip => Box::new(BgzipCompress::new(compression_level.bgzip())),
@@ -327,7 +347,7 @@ pub fn autodetect_create_prefer_bgzip<P: AsRef<Path>>(
 pub fn autodetect_create_or_stdout<P: AsRef<Path>>(
     path: Option<P>,
     compression_level: CompressionLevel,
-) -> Result<impl Write> {
+) -> Result<impl Write + Send + Unpin> {
     let compressor = if let Some(path) = path.as_ref() {
         if let Some(format) = FileFormat::from_path(path.as_ref()) {
             format.compressor(compression_level)
@@ -337,10 +357,10 @@ pub fn autodetect_create_or_stdout<P: AsRef<Path>>(
     } else {
         Box::new(PlainProcessor::new())
     };
-    let output: Box<dyn Write> = if let Some(path) = path {
+    let output: Box<dyn Write + Send + Unpin> = if let Some(path) = path {
         Box::new(File::create(path)?)
     } else {
-        Box::new(std::io::stdout().lock())
+        Box::new(std::io::stdout())
     };
     Ok(ProcessorWriter::with_processor(compressor, output))
 }
@@ -355,10 +375,10 @@ pub fn autodetect_create_or_stdout<P: AsRef<Path>>(
 pub fn autodetect_create_or_stdout_prefer_bgzip<P: AsRef<Path>>(
     path: Option<P>,
     compression_level: CompressionLevel,
-) -> Result<impl Write> {
+) -> Result<impl Write + Send + Unpin> {
     use std::io::IsTerminal;
 
-    let compressor = if let Some(path) = path.as_ref() {
+    let compressor: Box<dyn Processor + Send + Unpin> = if let Some(path) = path.as_ref() {
         if let Some(format) = FileFormat::from_path(path.as_ref()) {
             match format {
                 FileFormat::Gzip => Box::new(BgzipCompress::new(compression_level.bgzip())),
@@ -368,17 +388,17 @@ pub fn autodetect_create_or_stdout_prefer_bgzip<P: AsRef<Path>>(
             Box::new(BgzipCompress::new(compression_level.bgzip()))
         }
     } else {
-        let c: Box<dyn Processor> = if !std::io::stdout().is_terminal() {
+        let c: Box<dyn Processor + Send + Unpin> = if !std::io::stdout().is_terminal() {
             Box::new(BgzipCompress::new(compression_level.bgzip()))
         } else {
             Box::new(PlainProcessor::new())
         };
         c
     };
-    let output: Box<dyn Write> = if let Some(path) = path {
+    let output: Box<dyn Write + Send + Unpin> = if let Some(path) = path {
         Box::new(File::create(path)?)
     } else {
-        Box::new(std::io::stdout().lock())
+        Box::new(std::io::stdout())
     };
     Ok(ProcessorWriter::with_processor(compressor, output))
 }
@@ -476,6 +496,25 @@ mod test {
         Ok(())
     }
 
+    #[cfg(feature = "rayon")]
+    #[test]
+    fn test_read_rayon() -> anyhow::Result<()> {
+        use crate::io::RayonReader;
+
+        let mut expected_data = Vec::new();
+        File::open("testfiles/sqlite3.c")?.read_to_end(&mut expected_data)?;
+
+        for one_file in FILE_LIST {
+            let mut read_data = Vec::new();
+            RayonReader::new(autodetect_reader(BufReader::new(File::open(one_file)?))?)
+                .read_to_end(&mut read_data)?;
+            assert_eq!(read_data.len(), expected_data.len());
+            assert_eq!(read_data, expected_data);
+        }
+
+        Ok(())
+    }
+
     #[cfg(feature = "tokio")]
     #[tokio::test]
     async fn test_read_async() -> anyhow::Result<()> {
@@ -510,6 +549,156 @@ mod test {
 
             let mut read_data = Vec::new();
             autodetect_open_or_stdin(Some(one_file))?.read_to_end(&mut read_data)?;
+            assert_eq!(read_data.len(), expected_data.len());
+            assert_eq!(read_data, expected_data);
+        }
+
+        Ok(())
+    }
+
+    #[cfg(feature = "rayon")]
+    #[test]
+    fn test_file_rayon() -> anyhow::Result<()> {
+        use crate::io::RayonReader;
+
+        let mut expected_data = Vec::new();
+        File::open("testfiles/sqlite3.c")?.read_to_end(&mut expected_data)?;
+
+        for one_file in FILE_LIST {
+            let mut read_data = Vec::new();
+            RayonReader::new(autodetect_open(one_file)?).read_to_end(&mut read_data)?;
+            assert_eq!(read_data.len(), expected_data.len());
+            assert_eq!(read_data, expected_data);
+
+            let mut read_data = Vec::new();
+            RayonReader::new(autodetect_open_or_stdin(Some(one_file))?)
+                .read_to_end(&mut read_data)?;
+            assert_eq!(read_data.len(), expected_data.len());
+            assert_eq!(read_data, expected_data);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_file_write() -> anyhow::Result<()> {
+        let mut expected_data = Vec::new();
+        File::open("testfiles/sqlite3.c")?.read_to_end(&mut expected_data)?;
+
+        for one_format in &[
+            #[cfg(feature = "gzip")]
+            FileFormat::Gzip,
+            #[cfg(feature = "bgzip")]
+            FileFormat::BGZip,
+            #[cfg(feature = "bzip2")]
+            FileFormat::Bzip2,
+            #[cfg(feature = "xz")]
+            FileFormat::Xz,
+            #[cfg(feature = "zstd")]
+            FileFormat::Zstd,
+        ] {
+            let output_filename =
+                format!("target/test_autodetect_write.{}", one_format.extension());
+            let mut writer = autodetect_create(&output_filename, CompressionLevel::Default)?;
+            writer.write_all(&expected_data)?;
+            //writer.flush()?;
+            std::mem::drop(writer);
+
+            let mut read_data = Vec::new();
+            let mut reader = ProcessorReader::with_processor(
+                one_format.decompressor(),
+                std::io::BufReader::new(File::open(&output_filename)?),
+            );
+            reader.read_to_end(&mut read_data)?;
+            assert_eq!(read_data.len(), expected_data.len());
+            assert_eq!(read_data, expected_data);
+        }
+
+        Ok(())
+    }
+
+    #[cfg(feature = "tokio_fs")]
+    #[tokio::test]
+    async fn test_file_write_async() -> anyhow::Result<()> {
+        use tokio::io::AsyncWriteExt;
+
+        let mut expected_data = Vec::new();
+        tokio::fs::File::open("testfiles/sqlite3.c")
+            .await?
+            .read_to_end(&mut expected_data)
+            .await?;
+
+        for one_format in &[
+            #[cfg(feature = "gzip")]
+            FileFormat::Gzip,
+            #[cfg(feature = "bgzip")]
+            FileFormat::BGZip,
+            #[cfg(feature = "bzip2")]
+            FileFormat::Bzip2,
+            #[cfg(feature = "xz")]
+            FileFormat::Xz,
+            #[cfg(feature = "zstd")]
+            FileFormat::Zstd,
+        ] {
+            let output_filename =
+                format!("target/test_autodetect_write.{}", one_format.extension());
+            let mut writer =
+                autodetect_async_create(&output_filename, CompressionLevel::Default).await?;
+            writer.write_all(&expected_data).await?;
+            writer.flush().await?;
+            std::mem::drop(writer);
+            std::thread::sleep(std::time::Duration::from_millis(100));
+
+            let mut read_data = Vec::new();
+            let mut reader = AsyncProcessorReader::with_processor(
+                one_format.decompressor(),
+                tokio::io::BufReader::new(tokio::fs::File::open(&output_filename).await?),
+            );
+            reader.read_to_end(&mut read_data).await?;
+            assert_eq!(read_data.len(), expected_data.len());
+            assert_eq!(read_data, expected_data);
+        }
+
+        Ok(())
+    }
+
+    #[cfg(feature = "rayon")]
+    #[test]
+    fn test_file_write_rayon() -> anyhow::Result<()> {
+        use crate::io::{RayonReader, RayonWriter};
+
+        let mut expected_data = Vec::new();
+        File::open("testfiles/sqlite3.c")?.read_to_end(&mut expected_data)?;
+
+        for one_format in &[
+            #[cfg(feature = "gzip")]
+            FileFormat::Gzip,
+            #[cfg(feature = "bgzip")]
+            FileFormat::BGZip,
+            #[cfg(feature = "bzip2")]
+            FileFormat::Bzip2,
+            #[cfg(feature = "xz")]
+            FileFormat::Xz,
+            #[cfg(feature = "zstd")]
+            FileFormat::Zstd,
+        ] {
+            let output_filename =
+                format!("target/test_autodetect_write.{}", one_format.extension());
+            let mut writer = RayonWriter::new(autodetect_create(
+                output_filename.clone(),
+                CompressionLevel::Default,
+            )?);
+            writer.write_all(&expected_data)?;
+            writer.flush()?;
+            std::mem::drop(writer);
+            std::thread::sleep(std::time::Duration::from_millis(100));
+
+            let mut read_data = Vec::new();
+            let mut reader = RayonReader::new(ProcessorReader::with_processor(
+                one_format.decompressor(),
+                std::io::BufReader::new(File::open(&output_filename)?),
+            ));
+            reader.read_to_end(&mut read_data)?;
             assert_eq!(read_data.len(), expected_data.len());
             assert_eq!(read_data, expected_data);
         }
