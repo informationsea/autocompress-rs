@@ -36,12 +36,19 @@ impl<W: Write> Write for SmallStepWriter<W> {
 struct AsyncSmallStepWriter<W: AsyncWrite> {
     writer: W,
     step: usize,
+    last_mode: u8,
+    last_flush_mode: u8,
 }
 
 #[cfg(feature = "tokio")]
 impl<W: AsyncWrite> AsyncSmallStepWriter<W> {
     pub fn new(writer: W, step: usize) -> Self {
-        Self { writer, step }
+        Self {
+            writer,
+            step,
+            last_mode: 0,
+            last_flush_mode: 0,
+        }
     }
 }
 
@@ -52,6 +59,12 @@ impl<W: AsyncWrite + Unpin> AsyncWrite for AsyncSmallStepWriter<W> {
         cx: &mut std::task::Context<'_>,
         buf: &[u8],
     ) -> Poll<std::result::Result<usize, std::io::Error>> {
+        self.last_mode += 1;
+        if self.last_mode < 4 {
+            cx.waker().wake_by_ref();
+            return Poll::Pending;
+        }
+        self.last_mode = 0;
         let step = self.step;
         let mut this = self.as_mut();
         let writer = &mut this.writer;
@@ -63,6 +76,12 @@ impl<W: AsyncWrite + Unpin> AsyncWrite for AsyncSmallStepWriter<W> {
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<std::result::Result<(), std::io::Error>> {
+        self.last_flush_mode += 1;
+        if self.last_flush_mode < 4 {
+            cx.waker().wake_by_ref();
+            return Poll::Pending;
+        }
+        self.last_mode = 0;
         let mut this = self.as_mut();
         let writer = &mut this.writer;
         pin!(writer);
@@ -73,6 +92,12 @@ impl<W: AsyncWrite + Unpin> AsyncWrite for AsyncSmallStepWriter<W> {
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<std::result::Result<(), std::io::Error>> {
+        self.last_flush_mode += 1;
+        if self.last_flush_mode < 4 {
+            cx.waker().wake_by_ref();
+            return Poll::Pending;
+        }
+        self.last_mode = 0;
         let mut this = self.as_mut();
         let writer = &mut this.writer;
         pin!(writer);
@@ -462,6 +487,58 @@ async fn async_test_writer_bgzip_small_step2() -> anyhow::Result<()> {
         .expect("Failed to decompress data");
     assert_eq!(original_data.len(), decompressed_data.len());
     assert_eq!(original_data, &decompressed_data[..]);
+
+    Ok(())
+}
+
+#[cfg(feature = "tokio")]
+#[tokio::test]
+async fn async_test_writer_plain_small_step1() -> anyhow::Result<()> {
+    use crate::PlainProcessor;
+
+    let compressor = PlainProcessor::new();
+    let mut write_buffer = Vec::new();
+    let mut writer = AsyncSmallStepWriter::new(
+        AsyncProcessorWriter::with_processor(compressor, &mut write_buffer),
+        101,
+    );
+    let original_data = include_bytes!("../../../testfiles/sqlite3.c");
+    writer.write_all(original_data).await?;
+    writer.flush().await?;
+    //writer.flush()?;
+    std::mem::drop(writer);
+    assert_eq!(original_data.len(), write_buffer.len());
+    assert_eq!(original_data, &write_buffer[..]);
+
+    Ok(())
+}
+
+#[cfg(feature = "tokio")]
+#[tokio::test]
+async fn async_test_writer_plain_small_step2() -> anyhow::Result<()> {
+    use crate::PlainProcessor;
+
+    let compressor = PlainProcessor::new();
+    let mut write_buffer = Vec::new();
+    let mut writer = AsyncProcessorWriter::with_processor(
+        compressor,
+        AsyncSmallStepWriter::new(&mut write_buffer, 101),
+    );
+    let original_data = include_bytes!("../../../testfiles/sqlite3.c");
+    dbg!(original_data.len());
+    writer.write_all(original_data).await?;
+    writer.flush().await?;
+    dbg!(
+        writer.inner.total_out,
+        writer.inner.total_out2,
+        writer.inner.total_in
+    );
+
+    //writer.flush()?;
+    std::mem::drop(writer);
+    dbg!(write_buffer.len(), original_data.len());
+    assert_eq!(original_data.len(), write_buffer.len());
+    assert_eq!(original_data, &write_buffer[..]);
 
     Ok(())
 }

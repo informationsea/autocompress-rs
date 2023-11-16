@@ -26,6 +26,8 @@ use std::{
 /// File Format
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileFormat {
+    /// No compression
+    Plain,
     #[cfg(feature = "flate2")]
     /// Gzip format
     ///
@@ -57,6 +59,7 @@ pub enum FileFormat {
 impl FileFormat {
     pub fn extension(self) -> &'static str {
         match self {
+            Self::Plain => "",
             #[cfg(feature = "flate2")]
             Self::Gzip => "gz",
             #[cfg(feature = "bgzip")]
@@ -125,6 +128,7 @@ impl FileFormat {
         compression_level: CompressionLevel,
     ) -> Box<dyn Processor + Unpin + Send> {
         match self {
+            Self::Plain => Box::new(PlainProcessor::new()),
             #[cfg(feature = "flate2")]
             Self::Gzip => Box::new(GzipCompress::new(compression_level.flate2())),
             #[cfg(feature = "bgzip")]
@@ -140,6 +144,7 @@ impl FileFormat {
 
     pub fn decompressor(self) -> Box<dyn Processor + Unpin + Send> {
         match self {
+            Self::Plain => Box::new(PlainProcessor::new()),
             #[cfg(feature = "flate2")]
             Self::Gzip => Box::new(GzipDecompress::new()),
             #[cfg(feature = "bgzip")]
@@ -599,6 +604,7 @@ mod test {
         File::open("testfiles/sqlite3.c")?.read_to_end(&mut expected_data)?;
 
         for one_format in &[
+            FileFormat::Plain,
             #[cfg(feature = "gzip")]
             FileFormat::Gzip,
             #[cfg(feature = "bgzip")]
@@ -652,6 +658,7 @@ mod test {
             .await?;
 
         for one_format in &[
+            FileFormat::Plain,
             #[cfg(feature = "gzip")]
             FileFormat::Gzip,
             #[cfg(feature = "bgzip")]
@@ -663,6 +670,7 @@ mod test {
             #[cfg(feature = "zstd")]
             FileFormat::Zstd,
         ] {
+            eprintln!("{:?}", one_format);
             let output_filename = format!(
                 "target/test_autodetect_async_write.{}",
                 one_format.extension()
@@ -677,7 +685,7 @@ mod test {
                 .flush()
                 .await
                 .with_context(|| format!("flush error: {:?}", one_format))?;
-            std::thread::sleep(std::time::Duration::from_millis(100));
+            writer.into_inner_writer().sync_all().await?;
 
             let mut read_data = Vec::new();
             let mut reader = AsyncProcessorReader::with_processor(
@@ -692,8 +700,8 @@ mod test {
                 .read_to_end(&mut read_data)
                 .await
                 .with_context(|| format!("read_to_end error: {:?}", one_format))?;
-            assert_eq!(read_data.len(), expected_data.len());
-            assert_eq!(read_data, expected_data);
+            assert_eq!(read_data.len(), expected_data.len(), "{:?}", one_format);
+            assert_eq!(read_data, expected_data, "{:?}", one_format);
         }
 
         Ok(())

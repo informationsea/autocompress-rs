@@ -1,6 +1,5 @@
 #[cfg(feature = "tokio")]
 use std::{
-    future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -8,11 +7,13 @@ use std::{
 use tokio::{
     io::{AsyncBufRead, AsyncRead, ReadBuf},
     pin,
-    sync::Mutex,
 };
 
 use crate::{Flush, Processor, Status};
-use std::io::{BufRead, Read};
+use std::{
+    io::{BufRead, Read},
+    task::ready,
+};
 
 /// This struct that allows reading of data processed by a [`Processor`] from a [`BufRead`].
 ///
@@ -150,23 +151,23 @@ struct AsyncProcessorReaderInner<P: Processor, R: AsyncBufRead + Unpin> {
 #[cfg(feature = "tokio")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "tokio")))]
 pub struct AsyncProcessorReader<P: Processor, R: AsyncBufRead + Unpin> {
-    inner: Mutex<Option<AsyncProcessorReaderInner<P, R>>>,
+    inner: AsyncProcessorReaderInner<P, R>,
 }
 
 #[cfg(feature = "tokio")]
 impl<P: Processor + Default, R: AsyncBufRead + Unpin> AsyncProcessorReader<P, R> {
     pub fn new(reader: R) -> Self {
         Self {
-            inner: Mutex::new(Some(AsyncProcessorReaderInner {
+            inner: AsyncProcessorReaderInner {
                 processor: P::default(),
                 reader,
-            })),
+            },
         }
     }
 
     /// Unwraps this AsyncProcessorReader<P, R>, returning the underlying reader.
-    pub async fn into_inner_reader(self) -> R {
-        self.inner.lock().await.take().unwrap().reader
+    pub fn into_inner_reader(self) -> R {
+        self.inner.reader
     }
 }
 
@@ -174,7 +175,7 @@ impl<P: Processor + Default, R: AsyncBufRead + Unpin> AsyncProcessorReader<P, R>
 impl<P: Processor, R: AsyncBufRead + Unpin> AsyncProcessorReader<P, R> {
     pub fn with_processor(processor: P, reader: R) -> Self {
         Self {
-            inner: Mutex::new(Some(AsyncProcessorReaderInner { processor, reader })),
+            inner: AsyncProcessorReaderInner { processor, reader },
         }
     }
 }
@@ -182,31 +183,18 @@ impl<P: Processor, R: AsyncBufRead + Unpin> AsyncProcessorReader<P, R> {
 #[cfg(feature = "tokio")]
 impl<P: Processor, R: AsyncBufRead + Unpin> AsyncRead for AsyncProcessorReader<P, R> {
     fn poll_read(
-        mut self: Pin<&mut Self>,
+        self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<std::io::Result<()>> {
-        let this = self.as_mut();
-        let inner_mutex = this.inner.lock();
-        pin!(inner_mutex);
-        let mut inner_option = match inner_mutex.poll(cx) {
-            Poll::Ready(inner_option) => inner_option,
-            Poll::Pending => return Poll::Pending,
-        };
-        let mut inner = inner_option.take().expect("No inner data");
+        let this = self.get_mut();
+        let inner = &mut this.inner;
 
         let mut_reader = &mut inner.reader;
         pin!(mut_reader);
-        let reader_buf = match mut_reader.poll_fill_buf(cx)? {
-            Poll::Ready(buf) => buf,
-            Poll::Pending => {
-                inner_option.replace(inner);
-                return Poll::Pending;
-            }
-        };
+        let reader_buf = ready!(mut_reader.poll_fill_buf(cx)?);
         if reader_buf.is_empty() {
             // EOF
-            inner_option.replace(inner);
             return Poll::Ready(Ok(()));
         }
 
@@ -219,17 +207,15 @@ impl<P: Processor, R: AsyncBufRead + Unpin> AsyncRead for AsyncProcessorReader<P
         let processed_in = decompress.total_in() - last_in;
         let processed_out = decompress.total_out() - last_out;
 
-        buf.advance(processed_out as usize);
+        buf.advance(TryInto::<usize>::try_into(processed_out).unwrap());
 
         let mut_reader = &mut inner.reader;
         pin!(mut_reader);
-        mut_reader.consume(processed_in as usize);
+        mut_reader.consume(TryInto::<usize>::try_into(processed_in).unwrap());
 
         if status == Status::StreamEnd {
             decompress.reset();
         }
-
-        inner_option.replace(inner);
 
         if processed_out == 0 {
             cx.waker().wake_by_ref();

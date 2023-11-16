@@ -1,8 +1,11 @@
-use std::io::{Result, Write};
 #[cfg(feature = "tokio")]
-use std::{future::Future, task::Poll};
+use std::task::Poll;
+use std::{
+    io::{Result, Write},
+    task::ready,
+};
 #[cfg(feature = "tokio")]
-use tokio::{io::AsyncWrite, pin, sync::Mutex};
+use tokio::{io::AsyncWrite, pin};
 
 use crate::{Flush, Processor, Status};
 
@@ -203,9 +206,14 @@ impl<P: Processor, W: Write> Write for ProcessorWriter<P, W> {
 
 struct AsyncProcessorWriterInner<P: Processor, W: AsyncWrite> {
     processor: P,
-    writer: W,
+    writer: Option<W>,
     buffer: Vec<u8>,
     unwritten_buffer_size: usize,
+    total_in: u64,
+    total_out: u64,
+    total_out2: u64,
+    is_flushed: bool,
+    is_stream_end: bool,
 }
 
 #[cfg(feature = "tokio")]
@@ -239,21 +247,24 @@ struct AsyncProcessorWriterInner<P: Processor, W: AsyncWrite> {
 /// # }
 /// ```
 pub struct AsyncProcessorWriter<P: Processor, W: AsyncWrite> {
-    inner: Mutex<Option<AsyncProcessorWriterInner<P, W>>>,
-    is_flushed: bool,
+    inner: AsyncProcessorWriterInner<P, W>,
 }
 
 #[cfg(feature = "tokio")]
 impl<P: Processor + Default, W: AsyncWrite> AsyncProcessorWriter<P, W> {
     pub fn new(writer: W) -> Self {
         Self {
-            inner: Mutex::new(Some(AsyncProcessorWriterInner {
+            inner: AsyncProcessorWriterInner {
                 processor: P::default(),
-                writer,
+                writer: Some(writer),
                 buffer: vec![0u8; PROCESSOR_WRITER_DEFAULT_BUFFER],
                 unwritten_buffer_size: 0,
-            })),
-            is_flushed: false,
+                total_in: 0,
+                total_out: 0,
+                total_out2: 0,
+                is_flushed: false,
+                is_stream_end: false,
+            },
         }
     }
 }
@@ -286,33 +297,49 @@ impl<P: Processor, W: AsyncWrite> AsyncProcessorWriter<P, W> {
     /// ```
     pub fn with_processor(processor: P, writer: W) -> Self {
         Self {
-            inner: Mutex::new(Some(AsyncProcessorWriterInner {
+            inner: AsyncProcessorWriterInner {
                 processor,
-                writer,
+                writer: Some(writer),
                 buffer: vec![0u8; PROCESSOR_WRITER_DEFAULT_BUFFER],
                 unwritten_buffer_size: 0,
-            })),
-            is_flushed: false,
+                total_in: 0,
+                total_out: 0,
+                total_out2: 0,
+                is_flushed: false,
+                is_stream_end: false,
+            },
         }
     }
 
     pub fn with_buffer_size(processor: P, writer: W, buffer_size: usize) -> Self {
         Self {
-            inner: Mutex::new(Some(AsyncProcessorWriterInner {
+            inner: AsyncProcessorWriterInner {
                 processor,
-                writer,
+                writer: Some(writer),
                 buffer: vec![0u8; buffer_size],
                 unwritten_buffer_size: 0,
-            })),
-            is_flushed: false,
+                total_in: 0,
+                total_out: 0,
+                total_out2: 0,
+                is_stream_end: false,
+                is_flushed: false,
+            },
         }
+    }
+
+    /// Unwraps this AsyncProcessorWriter<P, W>, returning the underlying writer.
+    pub fn into_inner_writer(mut self) -> W {
+        if !self.inner.is_flushed {
+            panic!("AsyncProcessorWriter is dropped without shutdown")
+        }
+        self.inner.writer.take().unwrap()
     }
 }
 
 #[cfg(feature = "tokio")]
 impl<P: Processor, W: AsyncWrite> Drop for AsyncProcessorWriter<P, W> {
     fn drop(&mut self) {
-        if !self.is_flushed {
+        if !self.inner.is_flushed {
             panic!("AsyncProcessorWriter is dropped without shutdown")
         }
     }
@@ -327,19 +354,31 @@ fn write_buffer<P: Processor, W: AsyncWrite + Unpin>(
     //dbg!("write_buffer", inner.unwritten_buffer_size);
     while wrote_data < inner.unwritten_buffer_size {
         //dbg!(wrote_data);
-        let writer = &mut inner.writer;
+        let writer = &mut inner.writer.as_mut().unwrap();
         pin!(writer);
-
+        // dbg!(wrote_data, inner.unwritten_buffer_size, inner.buffer.len());
         match writer.poll_write(cx, &inner.buffer[wrote_data..inner.unwritten_buffer_size])? {
             Poll::Ready(written_size) => {
+                dbg!(written_size, wrote_data,);
                 wrote_data += written_size;
+                inner.total_out += TryInto::<u64>::try_into(written_size).unwrap();
             }
             Poll::Pending => {
+                // dbg!(
+                //     "pending",
+                //     wrote_data,
+                //     inner.unwritten_buffer_size,
+                //     inner.buffer.len()
+                // );
                 inner
                     .buffer
                     .copy_within(wrote_data..inner.unwritten_buffer_size, 0);
                 inner.unwritten_buffer_size -= wrote_data;
-                return Poll::Pending;
+                if wrote_data == 0 {
+                    return Poll::Pending;
+                } else {
+                    return Poll::Ready(Ok(()));
+                }
             }
         }
     }
@@ -351,33 +390,25 @@ fn write_buffer<P: Processor, W: AsyncWrite + Unpin>(
 #[cfg(feature = "tokio")]
 impl<P: Processor, W: AsyncWrite + Unpin> AsyncWrite for AsyncProcessorWriter<P, W> {
     fn poll_write(
-        mut self: std::pin::Pin<&mut Self>,
+        self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
         buf: &[u8],
     ) -> std::task::Poll<std::result::Result<usize, std::io::Error>> {
         //dbg!("poll_write", buf.len());
-        self.is_flushed = false;
-        let this = self.as_mut();
-        let inner_mutex = this.inner.lock();
-        pin!(inner_mutex);
-        let mut inner_option = match inner_mutex.poll(cx) {
-            Poll::Ready(inner_option) => inner_option,
-            Poll::Pending => return Poll::Pending,
-        };
-        let mut inner = inner_option.take().expect("No inner data");
-
-        match write_buffer(&mut inner, cx)? {
-            Poll::Ready(()) => {}
-            Poll::Pending => {
-                inner_option.replace(inner);
-                return Poll::Pending;
-            }
+        let this = self.get_mut();
+        let inner = &mut this.inner;
+        if !buf.is_empty() {
+            inner.is_flushed = false;
+            inner.is_stream_end = false;
         }
 
+        ready!(write_buffer(inner, cx)?);
+
         let mut input_buf = buf;
-        let mut output_buf = &mut inner.buffer[..];
+
         let mut write_size = 0;
         loop {
+            let mut output_buf = &mut inner.buffer[inner.unwritten_buffer_size..];
             let original_total_in = inner.processor.total_in();
             let original_total_out = inner.processor.total_out();
             let status = inner
@@ -386,9 +417,12 @@ impl<P: Processor, W: AsyncWrite + Unpin> AsyncWrite for AsyncProcessorWriter<P,
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
             let processed_in = inner.processor.total_in() - original_total_in;
             let processed_out = inner.processor.total_out() - original_total_out;
+            dbg!(processed_out, processed_in, status);
             input_buf = &input_buf[TryInto::<usize>::try_into(processed_in).unwrap()..];
             output_buf = &mut output_buf[TryInto::<usize>::try_into(processed_out).unwrap()..];
             write_size += TryInto::<usize>::try_into(processed_in).unwrap();
+            inner.total_in += TryInto::<u64>::try_into(processed_in).unwrap();
+            inner.total_out2 += TryInto::<u64>::try_into(processed_out).unwrap();
             inner.unwritten_buffer_size += TryInto::<usize>::try_into(processed_out).unwrap();
 
             if processed_in == 0 && processed_out == 0 {
@@ -408,85 +442,71 @@ impl<P: Processor, W: AsyncWrite + Unpin> AsyncWrite for AsyncProcessorWriter<P,
                 Status::Ok => {}
             }
             if input_buf.is_empty() || output_buf.is_empty() {
-                match write_buffer(&mut inner, cx)? {
-                    Poll::Ready(()) => {}
+                match write_buffer(inner, cx)? {
+                    Poll::Ready(()) => {
+                        return Poll::Ready(Ok(write_size));
+                    }
                     Poll::Pending => {
-                        inner_option.replace(inner);
-                        return Poll::Pending;
+                        if write_size == 0 {
+                            return Poll::Pending;
+                        } else {
+                            return Poll::Ready(Ok(write_size));
+                        }
                     }
                 }
-
-                inner_option.replace(inner);
-                return Poll::Ready(Ok(write_size));
             }
         }
     }
 
     fn poll_flush(
-        mut self: std::pin::Pin<&mut Self>,
+        self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<std::result::Result<(), std::io::Error>> {
-        //dbg!("poll_flush");
-        self.is_flushed = true;
-        let this = self.as_mut();
-        let x = this.inner.lock();
-        pin!(x);
-        let mut inner_option = match x.poll(cx) {
-            Poll::Ready(inner_option) => inner_option,
-            Poll::Pending => return Poll::Pending,
-        };
-        let mut inner = inner_option.take().expect("No inner data");
-        if inner.processor.total_in() == 0 {
-            return Poll::Ready(Ok(()));
-        }
+        let this = self.get_mut();
+        let inner = &mut this.inner;
 
-        match write_buffer(&mut inner, cx)? {
-            Poll::Ready(()) => {}
-            Poll::Pending => {
-                inner_option.replace(inner);
-                return Poll::Pending;
-            }
-        }
-
-        let mut output_buf = &mut inner.buffer[..];
         loop {
-            let original_total_in = inner.processor.total_in();
-            let original_total_out = inner.processor.total_out();
-            let status = inner
-                .processor
-                .process(&[], output_buf, Flush::Finish)
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-            let processed_in = inner.processor.total_in() - original_total_in;
-            let processed_out = inner.processor.total_out() - original_total_out;
-            output_buf = &mut output_buf[TryInto::<usize>::try_into(processed_out).unwrap()..];
-            inner.unwritten_buffer_size += TryInto::<usize>::try_into(processed_out).unwrap();
+            if !inner.is_stream_end {
+                let output_buf = &mut inner.buffer[inner.unwritten_buffer_size..];
+                let original_total_out = inner.processor.total_out();
+                let status = inner
+                    .processor
+                    .process(&[], output_buf, Flush::Finish)
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+                let processed_out = inner.processor.total_out() - original_total_out;
+                dbg!(processed_out, status, inner.unwritten_buffer_size);
+                inner.total_out2 += TryInto::<u64>::try_into(processed_out).unwrap();
+                //output_buf = &mut output_buf[TryInto::<usize>::try_into(processed_out).unwrap()..];
+                inner.unwritten_buffer_size += TryInto::<usize>::try_into(processed_out).unwrap();
 
-            if processed_in == 0 && processed_out == 0 {
-                unreachable!("No progress {:?}", status)
-            }
-
-            match status {
-                Status::MemNeeded => {
-                    return Poll::Ready(Err(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        "More memory is needed",
-                    )))
+                match status {
+                    Status::MemNeeded => {
+                        return Poll::Ready(Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            "More memory is needed",
+                        )))
+                    }
+                    Status::StreamEnd => {
+                        inner.processor.reset();
+                        inner.is_stream_end = true;
+                    }
+                    Status::Ok => {}
                 }
-                Status::StreamEnd => {
-                    inner.processor.reset();
-                }
-                Status::Ok => {}
             }
-            if output_buf.is_empty() || status == Status::StreamEnd {
-                match write_buffer(&mut inner, cx)? {
+            while inner.unwritten_buffer_size > 0 {
+                match write_buffer(inner, cx)? {
                     Poll::Ready(()) => {}
                     Poll::Pending => {
-                        inner_option.replace(inner);
                         return Poll::Pending;
                     }
                 }
+            }
 
-                inner_option.replace(inner);
+            if inner.is_stream_end && inner.unwritten_buffer_size == 0 {
+                let writer = &mut inner.writer.as_mut().unwrap();
+                pin!(writer);
+                ready!(writer.poll_flush(cx))?;
+                inner.is_flushed = true;
                 return Poll::Ready(Ok(()));
             }
         }
