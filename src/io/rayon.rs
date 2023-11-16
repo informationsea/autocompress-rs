@@ -164,7 +164,7 @@ fn read_thread<R: Read>(mut reader: R, mut buf: Buf, sender: Sender<(R, Buf, Res
 /// # Ok(())
 /// # }
 /// ```
-pub struct RayonReader<R: Read + Send, TB: ThreadBuilder> {
+pub struct RayonReader<R: Read + Send, TB: ThreadBuilder = RayonThreadBuilder> {
     receiver: Receiver<(R, Buf, Result<()>)>,
     sender: Sender<(R, Buf, Result<()>)>,
     thread_builder: TB,
@@ -291,7 +291,7 @@ impl<R: Read + Send + 'static, TB: ThreadBuilder> BufRead for RayonReader<R, TB>
 /// # Ok(())
 /// # }
 /// ```
-pub struct RayonWriter<W: Write + Send + 'static, TB: ThreadBuilder> {
+pub struct RayonWriter<W: Write + Send + 'static, TB: ThreadBuilder = RayonThreadBuilder> {
     sender: Sender<(W, Buf, Result<()>)>,
     receiver: Receiver<(W, Buf, Result<()>)>,
     buf: Buf,
