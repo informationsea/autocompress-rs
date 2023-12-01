@@ -1,7 +1,4 @@
-use crossbeam_channel::{
-    Receiver, RecvError, RecvTimeoutError, SendError, SendTimeoutError, Sender, TryRecvError,
-    TrySendError,
-};
+use std::sync::mpsc::{channel, Receiver, RecvError, RecvTimeoutError, Sender, TryRecvError};
 use std::{io::prelude::*, io::Result, ops::Deref};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -93,25 +90,6 @@ fn receive_or_yield<R>(receiver: &Receiver<R>) -> std::result::Result<R, RecvErr
     }
 }
 
-fn send_or_yield<R>(sender: &Sender<R>, data: R) -> std::result::Result<(), SendError<R>> {
-    match sender.try_send(data) {
-        Ok(_) => return Ok(()),
-        Err(TrySendError::Full(data)) => match rayon::yield_now() {
-            None => return sender.send(data),
-            Some(rayon::Yield::Executed) => return send_or_yield(sender, data),
-            Some(rayon::Yield::Idle) => match sender.send_timeout(data, TIMEOUT_DURATION) {
-                Ok(t) => return Ok(t),
-                Err(SendTimeoutError::Timeout(data)) => {
-                    //dbg!("send idle");
-                    return send_or_yield(sender, data);
-                }
-                Err(SendTimeoutError::Disconnected(data)) => return Err(SendError(data)),
-            },
-        },
-        Err(TrySendError::Disconnected(data)) => return Err(SendError(data)),
-    }
-}
-
 pub trait ThreadBuilder {
     fn new_thread<F: FnOnce() -> () + Send + 'static>(&self, f: F);
 }
@@ -135,14 +113,24 @@ impl ThreadBuilder for SystemThreadBuilder {
 }
 
 fn read_work<R: Read>(mut reader: R, buf: &mut Buf) -> Result<()> {
-    let read_bytes = reader.read(buf.unfilled_buf())?;
-    buf.advance(read_bytes);
+    loop {
+        let read_bytes = reader.read(buf.unfilled_buf())?;
+        if read_bytes == 0 {
+            break;
+        }
+        buf.advance(read_bytes);
+        if buf.unfilled_buf().is_empty() {
+            break;
+        }
+    }
     Ok(())
 }
 
 fn read_thread<R: Read>(mut reader: R, mut buf: Buf, sender: Sender<(R, Buf, Result<()>)>) {
     let result = read_work(&mut reader, &mut buf);
-    send_or_yield(&sender, (reader, buf, result)).expect("Failed to send read buffer");
+    sender
+        .send((reader, buf, result))
+        .expect("Failed to send read buffer");
 }
 
 /// Off load read operation to another thread.
@@ -190,7 +178,7 @@ impl<R: Read + Send + 'static, TB: ThreadBuilder> RayonReader<R, TB> {
         thread_builder: TB,
         capacity: usize,
     ) -> Self {
-        let (sender, receiver) = crossbeam_channel::bounded(1);
+        let (sender, receiver) = channel();
 
         {
             let sender = sender.clone();
@@ -225,7 +213,8 @@ impl<R: Read + Send + 'static, TB: ThreadBuilder> RayonReader<R, TB> {
                 }
                 Err(e) => {
                     self.eof = true;
-                    send_or_yield(&self.sender, (reader, new_buf, Ok(())))
+                    self.sender
+                        .send((reader, new_buf, Ok(())))
                         .expect("Failed to send buffer");
                     return Err(e);
                 }
@@ -316,7 +305,7 @@ impl<W: Write + Send + 'static, TB: ThreadBuilder> RayonWriter<W, TB> {
         thread_builder: TB,
         capacity: usize,
     ) -> Self {
-        let (sender, receiver) = crossbeam_channel::bounded(1);
+        let (sender, receiver) = channel();
 
         RayonWriter {
             sender,
@@ -351,7 +340,9 @@ impl<W: Write + Send + 'static, TB: ThreadBuilder> RayonWriter<W, TB> {
             if flush && result.is_ok() {
                 result = writer.flush();
             }
-            send_or_yield(&sender, (writer, new_buf, result)).expect("Failed to send write buffer");
+            sender
+                .send((writer, new_buf, result))
+                .expect("Failed to send write buffer");
         });
         Ok(())
     }
@@ -404,85 +395,4 @@ impl<W: Write + Send + 'static, TB: ThreadBuilder> Write for RayonWriter<W, TB> 
 }
 
 #[cfg(test)]
-mod test {
-    use super::*;
-    #[test]
-    pub fn test_rayon_reader() -> anyhow::Result<()> {
-        let expected_data = include_bytes!("../../testfiles/sqlite3.c");
-        let (send, recv) = crossbeam_channel::bounded(100);
-
-        const N: usize = 100;
-
-        for i in 0..N {
-            let send = send.clone();
-            rayon::spawn(move || {
-                eprintln!("start {}", i);
-
-                let mut read_buffer = vec![];
-                // write test
-                let mut reader = RayonReader::with_thread_builder_and_capacity(
-                    std::fs::File::open("testfiles/sqlite3.c").unwrap(),
-                    RayonThreadBuilder,
-                    101,
-                );
-                reader.read_to_end(&mut read_buffer).unwrap();
-                std::mem::drop(reader);
-                assert_eq!(expected_data.len(), read_buffer.len());
-                assert_eq!(&expected_data[..], &read_buffer[..]);
-
-                send.send(i).unwrap();
-            });
-        }
-
-        eprintln!("waiting");
-
-        for x in 0..N {
-            let i = recv.recv().unwrap();
-            eprintln!("Ok {} {x}", i);
-        }
-
-        Ok(())
-    }
-
-    #[test]
-    pub fn test_rayon_writer() -> anyhow::Result<()> {
-        let expected_data = include_bytes!("../../testfiles/sqlite3.c");
-        let (send, recv) = crossbeam_channel::bounded(100);
-
-        const N: usize = 100;
-
-        for i in 0..N {
-            let send = send.clone();
-            rayon::spawn(move || {
-                //eprintln!("start {}", i);
-
-                let path = format!("target/test_rayon_writer_{}.c", i);
-                let writer_file = std::fs::File::create(&path).unwrap();
-                // write test
-                let mut writer = RayonWriter::with_thread_builder_and_capacity(
-                    writer_file,
-                    RayonThreadBuilder,
-                    101,
-                );
-                writer.write_all(&expected_data[..]).unwrap();
-                writer.into_inner_writer().sync_all().unwrap();
-
-                std::thread::sleep(std::time::Duration::from_millis(10));
-                let read_buffer = std::fs::read(path).unwrap();
-                assert_eq!(expected_data.len(), read_buffer.len());
-                assert_eq!(&expected_data[..], &read_buffer[..]);
-
-                send.send(i).unwrap();
-            });
-        }
-
-        //eprintln!("waiting");
-
-        for x in 0..N {
-            let i = recv.recv().unwrap();
-            eprintln!("Ok {} {x}", i);
-        }
-
-        Ok(())
-    }
-}
+mod test;

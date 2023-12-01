@@ -1,4 +1,5 @@
 use super::*;
+use crate::tests::SmallStepReader;
 
 #[cfg(feature = "flate2")]
 use crate::gzip::GzipDecompress;
@@ -16,26 +17,8 @@ use tokio::io::AsyncReadExt;
 #[cfg(feature = "tokio")]
 use tokio::io::BufReader as AsyncBufReader;
 
-struct SmallStepReader<R: Read> {
-    inner: R,
-    step_size: usize,
-}
-
-impl<R: Read> SmallStepReader<R> {
-    fn new(inner: R, step_size: usize) -> Self {
-        Self { inner, step_size }
-    }
-}
-
-impl<R: Read> Read for SmallStepReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let buf_len = buf.len();
-        self.inner.read(&mut buf[..self.step_size.min(buf_len)])
-    }
-}
-
 #[cfg(feature = "tokio")]
-struct AsyncSmallStepReader<R: AsyncRead> {
+pub struct AsyncSmallStepReader<R: AsyncRead> {
     inner: R,
     step_size: usize,
     last_mode: u8,
@@ -43,7 +26,7 @@ struct AsyncSmallStepReader<R: AsyncRead> {
 
 #[cfg(feature = "tokio")]
 impl<R: AsyncRead> AsyncSmallStepReader<R> {
-    fn new(inner: R, step_size: usize) -> Self {
+    pub fn new(inner: R, step_size: usize) -> Self {
         Self {
             inner,
             step_size,

@@ -127,8 +127,6 @@ pub enum Status {
     Ok,
     /// End of stream
     StreamEnd,
-    /// More memory is required
-    MemNeeded,
 }
 
 /// Values which indicate the form of flushing to be used when processing data.

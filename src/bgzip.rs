@@ -244,7 +244,6 @@ mod test {
             match compress.process(&[], output, Flush::Finish)? {
                 Status::Ok => {}
                 Status::StreamEnd => break,
-                _ => unreachable!(),
             }
             //panic!()
         }

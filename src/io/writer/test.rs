@@ -11,29 +11,10 @@ use std::io::prelude::*;
 #[cfg(feature = "tokio")]
 use tokio::io::AsyncWriteExt;
 
-struct SmallStepWriter<W: Write> {
-    writer: W,
-    step: usize,
-}
-
-impl<W: Write> SmallStepWriter<W> {
-    fn new(writer: W, step: usize) -> Self {
-        Self { writer, step }
-    }
-}
-
-impl<W: Write> Write for SmallStepWriter<W> {
-    fn flush(&mut self) -> Result<()> {
-        self.writer.flush()
-    }
-
-    fn write(&mut self, buf: &[u8]) -> Result<usize> {
-        self.writer.write(&buf[..self.step.min(buf.len())])
-    }
-}
+use crate::tests::SmallStepWriter;
 
 #[cfg(feature = "tokio")]
-struct AsyncSmallStepWriter<W: AsyncWrite> {
+pub struct AsyncSmallStepWriter<W: AsyncWrite> {
     writer: W,
     step: usize,
     last_mode: u8,

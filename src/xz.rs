@@ -4,7 +4,7 @@ use crate::{CompressionLevel, Error, Flush, Processor, Result};
 use once_cell::sync::Lazy;
 use xz2::stream::Status;
 
-pub const DEFAULT_XZ_MEM_SIZE: u64 = 50_000_000;
+pub const DEFAULT_XZ_MEM_SIZE: u64 = 1_000_000_000;
 static DECOMPRESS_XZ_MEM_SIZE: Lazy<AtomicU64> = Lazy::new(|| AtomicU64::new(DEFAULT_XZ_MEM_SIZE));
 
 pub fn set_default_decompress_mem_size(mem_size: u64) {
@@ -99,9 +99,8 @@ impl Processor for XzCompress {
                 Flush::None => xz2::stream::Action::Run,
             },
         ) {
-            Ok(Status::Ok) => Ok(crate::Status::Ok),
+            Ok(Status::Ok) | Ok(Status::MemNeeded) => Ok(crate::Status::Ok),
             Ok(Status::GetCheck) => Err(Error::DecompressError("GetCheck".to_string())),
-            Ok(Status::MemNeeded) => Ok(crate::Status::MemNeeded),
             Ok(Status::StreamEnd) => Ok(crate::Status::StreamEnd),
             Err(e) => Err(Error::DecompressError(e.to_string())),
         }
@@ -143,12 +142,12 @@ impl Processor for XzDecompress {
     }
     fn process(&mut self, input: &[u8], output: &mut [u8], flush: Flush) -> Result<crate::Status> {
         match self.inner.process(input, output, xz2::stream::Action::Run) {
-            Ok(Status::Ok) => match flush {
+            Ok(Status::Ok) | Ok(Status::MemNeeded) => match flush {
                 Flush::Finish => Err(Error::MoreDataRequired),
                 Flush::None => Ok(crate::Status::Ok),
             },
             Ok(Status::GetCheck) => Err(Error::DecompressError("GetCheck".to_string())),
-            Ok(Status::MemNeeded) => Err(Error::DecompressError("MemNeeded".to_string())),
+            //Ok(Status::MemNeeded) => Err(Error::DecompressError("MemNeeded".to_string())),
             Ok(Status::StreamEnd) => Ok(crate::Status::StreamEnd),
             Err(e) => Err(Error::DecompressError(e.to_string())),
         }

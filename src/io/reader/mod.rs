@@ -100,9 +100,6 @@ impl<P: Processor, R: BufRead> Read for ProcessorReader<P, R> {
                 Status::StreamEnd => {
                     self.processor.reset();
                 }
-                Status::MemNeeded => {
-                    return Err(std::io::Error::new(std::io::ErrorKind::Other, "MemNeeded"));
-                }
                 _ => (),
             }
 

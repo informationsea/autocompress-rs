@@ -1,4 +1,5 @@
 use anyhow::Context;
+use std::io::prelude::*;
 
 #[cfg(feature = "tokio")]
 use tokio::fs::File;
@@ -116,7 +117,6 @@ pub(crate) fn test_compress<
         match status {
             Status::Ok => {}
             Status::StreamEnd => break,
-            _ => panic!("Unexpected status {:?}", status),
         }
     }
     //dbg!(compress.total_in(), compress.total_out());
@@ -188,7 +188,6 @@ pub(crate) fn test_decompress<D: Processor>(
                 total_in += decompress.total_in() - original_total_in;
                 total_out += decompress.total_out() - original_total_out;
             }
-            Status::MemNeeded => panic!("MemNeeded"),
         }
     }
     assert_eq!(total_in, data.len() as u64);
@@ -234,4 +233,43 @@ fn test_plain() -> anyhow::Result<()> {
         include_bytes!("../testfiles/sqlite3.c"),
     )?;
     Ok(())
+}
+
+pub struct SmallStepReader<R: Read> {
+    inner: R,
+    step_size: usize,
+}
+
+impl<R: Read> SmallStepReader<R> {
+    pub fn new(inner: R, step_size: usize) -> Self {
+        Self { inner, step_size }
+    }
+}
+
+impl<R: Read> Read for SmallStepReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let buf_len = buf.len();
+        self.inner.read(&mut buf[..self.step_size.min(buf_len)])
+    }
+}
+
+pub struct SmallStepWriter<W: Write> {
+    writer: W,
+    step: usize,
+}
+
+impl<W: Write> SmallStepWriter<W> {
+    pub fn new(writer: W, step: usize) -> Self {
+        Self { writer, step }
+    }
+}
+
+impl<W: Write> Write for SmallStepWriter<W> {
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.writer.flush()
+    }
+
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.writer.write(&buf[..self.step.min(buf.len())])
+    }
 }

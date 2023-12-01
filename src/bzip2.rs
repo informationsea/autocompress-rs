@@ -92,7 +92,7 @@ impl Processor for Bzip2Compress {
             Err(e) => Err(Error::DecompressError(e.to_string())),
             Ok(bzip2::Status::Ok) => Ok(Status::Ok),
             Ok(bzip2::Status::StreamEnd) => Ok(Status::StreamEnd),
-            Ok(bzip2::Status::MemNeeded) => Ok(Status::MemNeeded),
+            Ok(bzip2::Status::MemNeeded) => Ok(Status::Ok),
             Ok(bzip2::Status::FinishOk) => Ok(Status::Ok),
             Ok(bzip2::Status::RunOk) => Ok(Status::Ok),
             Ok(bzip2::Status::FlushOk) => Ok(Status::Ok),
@@ -135,12 +135,11 @@ impl Processor for Bzip2Decompress {
     fn process(&mut self, input: &[u8], output: &mut [u8], flush: Flush) -> Result<Status> {
         match self.inner.decompress(input, output) {
             Err(e) => Err(Error::DecompressError(e.to_string())),
-            Ok(bzip2::Status::Ok) => match flush {
+            Ok(bzip2::Status::Ok) | Ok(bzip2::Status::MemNeeded) => match flush {
                 Flush::Finish => Err(Error::MoreDataRequired),
                 Flush::None => Ok(Status::Ok),
             },
             Ok(bzip2::Status::StreamEnd) => Ok(Status::StreamEnd),
-            Ok(bzip2::Status::MemNeeded) => Ok(Status::MemNeeded),
             _ => unreachable!(),
         }
     }

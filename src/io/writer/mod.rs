@@ -152,12 +152,6 @@ impl<P: Processor, W: Write> Write for ProcessorWriter<P, W> {
             }
 
             match status {
-                Status::MemNeeded => {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        "More memory is needed",
-                    ))
-                }
                 Status::StreamEnd => {
                     self.processor.reset();
                 }
@@ -183,12 +177,6 @@ impl<P: Processor, W: Write> Write for ProcessorWriter<P, W> {
                     &self.buffer[..TryInto::<usize>::try_into(processed_out).unwrap()],
                 )?;
                 match status {
-                    Status::MemNeeded => {
-                        return Err(std::io::Error::new(
-                            std::io::ErrorKind::Other,
-                            "More memory is needed",
-                        ))
-                    }
                     Status::StreamEnd => {
                         self.processor.reset();
                         return Ok(());
@@ -359,7 +347,7 @@ fn write_buffer<P: Processor, W: AsyncWrite + Unpin>(
         // dbg!(wrote_data, inner.unwritten_buffer_size, inner.buffer.len());
         match writer.poll_write(cx, &inner.buffer[wrote_data..inner.unwritten_buffer_size])? {
             Poll::Ready(written_size) => {
-                dbg!(written_size, wrote_data,);
+                //dbg!(written_size, wrote_data,);
                 wrote_data += written_size;
                 inner.total_out += TryInto::<u64>::try_into(written_size).unwrap();
             }
@@ -417,7 +405,7 @@ impl<P: Processor, W: AsyncWrite + Unpin> AsyncWrite for AsyncProcessorWriter<P,
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
             let processed_in = inner.processor.total_in() - original_total_in;
             let processed_out = inner.processor.total_out() - original_total_out;
-            dbg!(processed_out, processed_in, status);
+            //dbg!(processed_out, processed_in, status);
             input_buf = &input_buf[TryInto::<usize>::try_into(processed_in).unwrap()..];
             output_buf = &mut output_buf[TryInto::<usize>::try_into(processed_out).unwrap()..];
             write_size += TryInto::<usize>::try_into(processed_in).unwrap();
@@ -430,12 +418,6 @@ impl<P: Processor, W: AsyncWrite + Unpin> AsyncWrite for AsyncProcessorWriter<P,
             }
 
             match status {
-                Status::MemNeeded => {
-                    return Poll::Ready(Err(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        "More memory is needed",
-                    )))
-                }
                 Status::StreamEnd => {
                     inner.processor.reset();
                 }
@@ -474,18 +456,12 @@ impl<P: Processor, W: AsyncWrite + Unpin> AsyncWrite for AsyncProcessorWriter<P,
                     .process(&[], output_buf, Flush::Finish)
                     .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
                 let processed_out = inner.processor.total_out() - original_total_out;
-                dbg!(processed_out, status, inner.unwritten_buffer_size);
+                //dbg!(processed_out, status, inner.unwritten_buffer_size);
                 inner.total_out2 += TryInto::<u64>::try_into(processed_out).unwrap();
                 //output_buf = &mut output_buf[TryInto::<usize>::try_into(processed_out).unwrap()..];
                 inner.unwritten_buffer_size += TryInto::<usize>::try_into(processed_out).unwrap();
 
                 match status {
-                    Status::MemNeeded => {
-                        return Poll::Ready(Err(std::io::Error::new(
-                            std::io::ErrorKind::Other,
-                            "More memory is needed",
-                        )))
-                    }
                     Status::StreamEnd => {
                         inner.processor.reset();
                         inner.is_stream_end = true;
