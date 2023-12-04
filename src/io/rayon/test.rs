@@ -3,6 +3,39 @@ use crate::tests::{SmallStepReader, SmallStepWriter};
 use std::io::{BufReader, BufWriter};
 
 #[test]
+fn test_rayon_reader_into_inner() -> anyhow::Result<()> {
+    let expected_data = include_bytes!("../../../testfiles/sqlite3.c");
+
+    let mut read_buffer = vec![];
+    let mut reader = RayonReader::with_thread_builder_and_capacity(
+        std::fs::File::open("testfiles/sqlite3.c").unwrap(),
+        RayonThreadBuilder,
+        101,
+    );
+    reader.read_to_end(&mut read_buffer).unwrap();
+    let inner = reader.into_inner();
+    assert_eq!(inner.metadata()?.len(), expected_data.len() as u64);
+    assert_eq!(expected_data.len(), read_buffer.len());
+    assert_eq!(&expected_data[..], &read_buffer[..]);
+
+    Ok(())
+}
+
+#[test]
+fn test_rayon_writer_into_inner() -> anyhow::Result<()> {
+    let expected_data = include_bytes!("../../../testfiles/sqlite3.c");
+
+    let writer_buffer = vec![];
+    let mut writer = RayonWriter::new(writer_buffer);
+    writer.write_all(&expected_data[..])?;
+    let inner = writer.into_inner_writer();
+    assert_eq!(expected_data.len(), inner.len());
+    assert_eq!(&expected_data[..], &inner[..]);
+
+    Ok(())
+}
+
+#[test]
 pub fn test_rayon_reader() -> anyhow::Result<()> {
     let expected_data = include_bytes!("../../../testfiles/sqlite3.c");
     let (send, recv) = channel();

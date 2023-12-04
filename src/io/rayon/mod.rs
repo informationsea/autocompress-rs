@@ -202,6 +202,9 @@ impl<R: Read + Send + 'static, TB: ThreadBuilder> RayonReader<R, TB> {
                 Ok(_) => {
                     if new_buf.is_empty() {
                         self.eof = true;
+                        self.sender
+                            .send((reader, new_buf, Ok(())))
+                            .expect("Failed to send EOF buffer");
                         return Ok(());
                     }
                     std::mem::swap(&mut self.buf, &mut new_buf);
