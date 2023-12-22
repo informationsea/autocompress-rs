@@ -278,7 +278,6 @@ where
     P: Processor + Send + 'static,
 {
     fn write(&mut self, mut buf: &[u8]) -> Result<usize> {
-        dbg!("write", buf.len());
         if self.is_error {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
