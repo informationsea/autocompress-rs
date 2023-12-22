@@ -1,7 +1,11 @@
+mod parallele_writer;
+
+pub use parallele_writer::*;
+
 use std::sync::mpsc::{channel, Receiver, RecvError, RecvTimeoutError, Sender, TryRecvError};
 use std::{io::prelude::*, io::Result, ops::Deref};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 struct Buf {
     data: Vec<u8>,
     start: usize,
@@ -88,6 +92,10 @@ fn receive_or_yield<R>(receiver: &Receiver<R>) -> std::result::Result<R, RecvErr
             Err(TryRecvError::Disconnected) => return Err(RecvError),
         }
     }
+}
+
+fn recv_error_to_io_error(e: RecvError) -> std::io::Error {
+    std::io::Error::new(std::io::ErrorKind::Other, e)
 }
 
 pub trait ThreadBuilder {

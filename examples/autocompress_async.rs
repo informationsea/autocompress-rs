@@ -23,10 +23,6 @@ enum FileFormat {
 #[derive(Parser)]
 #[clap(name = "autocompress", version, author)]
 struct Cli {
-    #[clap(short, long, help = "Decompress the file")]
-    decompress: bool,
-    #[clap(short = 'c', long, help = "Write to standard output")]
-    stdout: bool,
     #[clap(short = '1', long, help = "compress faster")]
     fast: bool,
     #[clap(short = '9', long, help = "compress better")]

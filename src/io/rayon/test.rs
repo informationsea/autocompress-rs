@@ -1,5 +1,8 @@
 use super::*;
-use crate::tests::{SmallStepReader, SmallStepWriter};
+use crate::{
+    gzip::GzipCompress,
+    tests::{SmallStepReader, SmallStepWriter},
+};
 use std::io::{BufReader, BufWriter};
 
 #[test]
@@ -271,6 +274,24 @@ pub fn test_rayon_writer_small_step2() -> anyhow::Result<()> {
         let _i = recv.recv().unwrap();
         //eprintln!("Ok {} {_x}", _i);
     }
+
+    Ok(())
+}
+
+#[test]
+fn test_rayon_parallel_writer() -> anyhow::Result<()> {
+    let write_buf = vec![];
+    let mut writer =
+        ParallelCompressWriter::with_buffer_size(write_buf, || GzipCompress::default(), 101);
+    let expected_data = include_bytes!("../../../testfiles/sqlite3.c");
+    writer.write_all(&expected_data[..])?;
+    writer.flush()?;
+    let inner = writer.into_inner()?;
+    let mut reader = flate2::read::MultiGzDecoder::new(&inner[..]);
+    let mut read_buffer = vec![];
+    reader.read_to_end(&mut read_buffer)?;
+    assert_eq!(expected_data.len(), read_buffer.len());
+    assert_eq!(&expected_data[..], &read_buffer[..]);
 
     Ok(())
 }
