@@ -64,16 +64,11 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-${{ matrix.config.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ matrix.config.target }}-cargo-${{ hashFiles('**/Cargo.toml') }}
       - name: Install cross
         if: ${{ matrix.config.cross }}
         run: |
           type cross 2>&1 > /dev/null || cargo install --force cross
-      - name: Build release all
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --target ${{ matrix.config.target }} --features full
       - name: Build all
         run: ${{ matrix.config.cross && 'cross' || 'cargo' }} build --release --target ${{ matrix.config.target }} --features full
       - name: Test all

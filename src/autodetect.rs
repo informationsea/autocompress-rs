@@ -15,7 +15,9 @@ use crate::zstd::{ZstdCompress, ZstdDecompress};
 #[cfg(feature = "tokio")]
 use crate::{io::AsyncProcessorReader, io::AsyncProcessorWriter};
 use crate::{
-    io::ProcessorReader, io::ProcessorWriter, CompressionLevel, PlainProcessor, Processor,
+    io::ProcessorReader,
+    io::{ParallelCompressWriter, ProcessorWriter},
+    CompressionLevel, PlainProcessor, Processor,
 };
 use std::{
     fs::File,
@@ -461,6 +463,13 @@ pub async fn autodetect_async_create_or_stdout<P: AsRef<Path>>(
     };
 
     Ok(AsyncProcessorWriter::with_processor(compressor, output))
+}
+
+pub fn autodetect_parallel_create<P: AsRef<Path>>(
+    path: P,
+    compression_level: CompressionLevel,
+) -> Result<ParallelCompressWriter<File, Box<dyn Processor + Send + Unpin>>> {
+    unimplemented!()
 }
 
 #[cfg(test)]
