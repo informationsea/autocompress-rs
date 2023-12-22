@@ -3,7 +3,10 @@ use crate::{
     gzip::GzipCompress,
     tests::{SmallStepReader, SmallStepWriter},
 };
-use std::io::{BufReader, BufWriter};
+use std::{
+    fs::File,
+    io::{BufReader, BufWriter},
+};
 
 #[test]
 fn test_rayon_reader_into_inner() -> anyhow::Result<()> {
@@ -31,7 +34,7 @@ fn test_rayon_writer_into_inner() -> anyhow::Result<()> {
     let writer_buffer = vec![];
     let mut writer = RayonWriter::new(writer_buffer);
     writer.write_all(&expected_data[..])?;
-    let inner = writer.into_inner_writer();
+    let inner = writer.into_inner();
     assert_eq!(expected_data.len(), inner.len());
     assert_eq!(&expected_data[..], &inner[..]);
 
@@ -176,7 +179,7 @@ pub fn test_rayon_writer() -> anyhow::Result<()> {
             let mut writer =
                 RayonWriter::with_thread_builder_and_capacity(writer_file, RayonThreadBuilder, 101);
             writer.write_all(&expected_data[..]).unwrap();
-            writer.into_inner_writer().sync_all().unwrap();
+            writer.into_inner().sync_all().unwrap();
 
             std::thread::sleep(std::time::Duration::from_millis(10));
             let read_buffer = std::fs::read(path).unwrap();
@@ -282,7 +285,7 @@ pub fn test_rayon_writer_small_step2() -> anyhow::Result<()> {
 fn test_rayon_parallel_writer() -> anyhow::Result<()> {
     let write_buf = vec![];
     let mut writer =
-        ParallelCompressWriter::with_buffer_size(write_buf, || GzipCompress::default(), 101);
+        ParallelCompressWriter::with_buffer_size(write_buf, || GzipCompress::default(), 101, 3);
     let expected_data = include_bytes!("../../../testfiles/pg2701.txt");
     writer.write_all(&expected_data[..])?;
     writer.flush()?;
@@ -292,6 +295,63 @@ fn test_rayon_parallel_writer() -> anyhow::Result<()> {
     reader.read_to_end(&mut read_buffer)?;
     assert_eq!(expected_data.len(), read_buffer.len());
     assert_eq!(&expected_data[..], &read_buffer[..]);
+
+    Ok(())
+}
+
+#[test]
+fn test_rayon_parallel_writer_to_file() -> anyhow::Result<()> {
+    let filename = "target/test_rayon_parallel_writer_to_file.gz";
+    let write_file = File::create(filename)?;
+    let mut writer =
+        ParallelCompressWriter::with_buffer_size(write_file, || GzipCompress::default(), 101, 3);
+    let expected_data = include_bytes!("../../../testfiles/pg2701.txt");
+    writer.write_all(&expected_data[..])?;
+    drop(writer);
+    let mut reader = flate2::read::MultiGzDecoder::new(File::open(filename)?);
+    let mut read_buffer = vec![];
+    reader.read_to_end(&mut read_buffer)?;
+    assert_eq!(expected_data.len(), read_buffer.len());
+    assert_eq!(&expected_data[..], &read_buffer[..]);
+
+    Ok(())
+}
+
+#[test]
+fn test_rayon_parallel_writer_many() -> anyhow::Result<()> {
+    let try_count = 10;
+    let parallel_count = 10;
+
+    let (send, recv) = channel();
+
+    for _ in 0..parallel_count {
+        let send = send.clone();
+        rayon::spawn(move || {
+            let write_buf = vec![];
+            let mut writer = ParallelCompressWriter::with_buffer_size(
+                write_buf,
+                || GzipCompress::default(),
+                101,
+                3,
+            );
+            let expected_data = include_bytes!("../../../testfiles/pg2701.txt");
+            for _ in 0..try_count {
+                writer.write_all(&expected_data[..]).unwrap();
+            }
+            writer.flush().unwrap();
+            let inner = writer.into_inner().unwrap();
+            let mut reader = flate2::read::MultiGzDecoder::new(&inner[..]);
+            let mut read_buffer = vec![];
+            reader.read_to_end(&mut read_buffer).unwrap();
+            assert_eq!(expected_data.len() * try_count, read_buffer.len());
+            //assert_eq!(&expected_data[..], &read_buffer[..]);
+            send.send(()).unwrap();
+        });
+    }
+
+    for _ in 0..parallel_count {
+        recv.recv().unwrap();
+    }
 
     Ok(())
 }

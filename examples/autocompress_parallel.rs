@@ -39,8 +39,6 @@ impl Into<autocompress::FileFormat> for FileFormat {
 #[derive(Parser)]
 #[clap(name = "autocompress", version, author)]
 struct Cli {
-    #[clap(short = 'c', long, help = "Write to standard output")]
-    stdout: bool,
     #[clap(short = '1', long, help = "compress faster")]
     fast: bool,
     #[clap(short = '9', long, help = "compress better")]
@@ -90,6 +88,7 @@ fn main() -> anyhow::Result<()> {
             autocompress::FileFormat::Plain
         }
     });
+    eprintln!("Output Format: {:?}", format);
 
     let processor_generator =
         move || -> Box<dyn Processor + Unpin + Send> { format.compressor(compression_level) };

@@ -32,8 +32,13 @@ impl<P: Processor> OrderedBuf<P> {
     }
 }
 
-const NUMBER_OF_BUFFERS: usize = 20;
+const NUMBER_OF_BUFFERS: usize = 50;
 
+/// `ParallelCompressWriter` is a struct that handles parallel compression writing.
+///
+/// # Type Parameters
+/// * `W`: This represents the writer where the compressed data will be written. It must implement the `Write` trait, be thread-safe (`Send`), and have a static lifetime (`'static`).
+/// * `P`: This represents the processor that will be used for the compression. It must implement the `Processor` trait, be thread-safe (`Send`), and have a static lifetime (`'static`).
 pub struct ParallelCompressWriter<W, P>
 where
     W: Write + Send + 'static,
@@ -53,6 +58,7 @@ where
     write_result_sender: Sender<std::result::Result<(W, OrderedBuf<P>), (W, std::io::Error)>>,
     write_result_receiver: Receiver<std::result::Result<(W, OrderedBuf<P>), (W, std::io::Error)>>,
     is_error: bool,
+    is_flushed: bool,
 }
 
 impl<W, P> ParallelCompressWriter<W, P>
@@ -60,18 +66,66 @@ where
     W: Write + Send + 'static,
     P: Processor + Send + 'static,
 {
+    /// Constructs a new instance of [`ParallelCompressWriter`].
+    ///
+    /// # Parameters
+    /// * `writer`: This is the writer where the compressed data will be written.
+    /// * `processor_generator`: This is a function that generates a new instance of the processor `P`.
+    ///
+    /// # Returns
+    /// A new instance of [`ParallelCompressWriter`].
+    ///
+    /// # Example
+    /// ```
+    /// # use std::fs::File;
+    /// # use std::io::Write;
+    /// # use autocompress::io::ParallelCompressWriter;
+    /// # use autocompress::gzip::GzipCompress;
+    /// # fn main() -> std::io::Result<()> {
+    /// let writer = File::create("target/rayon-parallel-writer.txt.gz")?;
+    /// let mut parallel_writer = ParallelCompressWriter::new(writer, || GzipCompress::default());
+    /// parallel_writer.write_all(&b"Hello, world\n"[..])?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn new<G: Fn() -> P>(writer: W, processor_generator: G) -> Self {
         Self::with_buffer_size(
             writer,
             processor_generator,
             DEFAULT_RAYON_READER_BUFFER_SIZE,
+            NUMBER_OF_BUFFERS,
         )
     }
 
+    /// Constructs a new instance of [`ParallelCompressWriter`] with a specified buffer size and buffer count.
+    ///
+    /// # Parameters
+    /// * `writer`: This is the writer where the compressed data will be written.
+    /// * `processor_generator`: This is a function that generates a new instance of the processor `P`.
+    /// * `buffer_size`: This is the size of the buffers used for compression.
+    /// * `buffer_count`: This is the number of buffers that will be used for compression. This is upper bounded by the number of threads in the rayon thread pool.
+    ///
+    /// # Returns
+    /// A new instance of [`ParallelCompressWriter`] with the specified buffer size and buffer count.
+    ///
+    /// # Example
+    /// ```
+    /// # use std::fs::File;
+    /// # use std::io::Write;
+    /// # use autocompress::io::ParallelCompressWriter;
+    /// # use autocompress::gzip::GzipCompress;
+    /// # fn main() -> std::io::Result<()> {
+    /// let writer = File::create("target/rayon-parallel-writer-with-buffer.txt.gz")?;
+    /// let mut parallel_writer = ParallelCompressWriter::with_buffer_size(writer, || GzipCompress::default(), 1024 * 1024, 50);
+    /// parallel_writer.write_all(&b"Hello, world\n"[..])?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn with_buffer_size<G: Fn() -> P>(
         writer: W,
         processor_generator: G,
         buffer_size: usize,
+        buffer_count: usize,
     ) -> Self {
         let (compress_result_sender, compress_result_receiver) = channel();
         let (write_result_sender, write_result_receiver) = channel();
@@ -79,7 +133,7 @@ where
         Self {
             writer: Some(writer),
             current_buffer: OrderedBuf::new(processor_generator(), buffer_size),
-            next_buffer: (0..NUMBER_OF_BUFFERS)
+            next_buffer: (0..buffer_count)
                 .map(|_| OrderedBuf::new(processor_generator(), buffer_size))
                 .collect(),
             buffer_size,
@@ -91,12 +145,13 @@ where
             write_result_receiver,
             write_result_sender,
             is_error: false,
+            is_flushed: true,
         }
     }
 
     pub fn into_inner(mut self) -> Result<W> {
         self.flush()?;
-        Ok(self.writer.expect("writer should not be None"))
+        Ok(self.writer.take().expect("writer should not be None"))
     }
 
     fn dispatch_write_non_block(&mut self) -> Result<()> {
@@ -284,6 +339,7 @@ where
                 "previous error",
             ));
         }
+        self.is_flushed = false;
         self.receive_compress_result(false)?;
         self.dispatch_write_non_block()?;
         let mut wrote_len = 0;
@@ -305,6 +361,9 @@ where
     }
 
     fn flush(&mut self) -> Result<()> {
+        if self.is_flushed {
+            return Ok(());
+        }
         if self.current_buffer.original.len() > 0 {
             self.dispatch_compress()?;
         }
@@ -332,6 +391,19 @@ where
             }
         }
         self.writer.as_mut().unwrap().flush()?;
+        self.is_flushed = true;
         Ok(())
+    }
+}
+
+impl<W, P> Drop for ParallelCompressWriter<W, P>
+where
+    W: Write + Send + 'static,
+    P: Processor + Send + 'static,
+{
+    fn drop(&mut self) {
+        if !self.is_flushed {
+            self.flush().expect("Failed to flush");
+        }
     }
 }

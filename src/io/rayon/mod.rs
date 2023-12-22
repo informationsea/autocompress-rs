@@ -98,10 +98,22 @@ fn recv_error_to_io_error(e: RecvError) -> std::io::Error {
     std::io::Error::new(std::io::ErrorKind::Other, e)
 }
 
+/// `ThreadBuilder` is a trait that defines a common interface for spawning new threads.
+///
+/// # Type Parameters
+/// * `F`: This represents the function that will be run on the new thread. It must be a function that takes no arguments and returns no value (`FnOnce() -> ()`), be thread-safe (`Send`), and have a static lifetime (`'static`).
+///
+/// # Methods
+/// * `new_thread`: This method spawns a new thread and runs the provided function on the new thread.
+///
+/// # Implementations
+/// * [`RayonThreadBuilder`]: This implementation uses `rayon::spawn` to spawn new threads.
+/// * [`SystemThreadBuilder`]: This implementation uses `std::thread::spawn` to spawn new threads.
 pub trait ThreadBuilder {
     fn new_thread<F: FnOnce() -> () + Send + 'static>(&self, f: F);
 }
 
+/// `RayonThreadBuilder` is a struct that implements the `ThreadBuilder` trait using `rayon::spawn` to spawn new threads.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RayonThreadBuilder;
 
@@ -111,6 +123,7 @@ impl ThreadBuilder for RayonThreadBuilder {
     }
 }
 
+/// `SystemThreadBuilder` is a struct that implements the `ThreadBuilder` trait using `std::thread::spawn` to spawn new threads.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SystemThreadBuilder;
 
@@ -358,7 +371,7 @@ impl<W: Write + Send + 'static, TB: ThreadBuilder> RayonWriter<W, TB> {
         Ok(())
     }
 
-    pub fn into_inner_writer(mut self) -> W {
+    pub fn into_inner(mut self) -> W {
         self.dispatch_write(true).expect("Failed to dispatch write");
         self.wait_buffer().expect("Failed to wait buffer");
         self.dropped = true;
