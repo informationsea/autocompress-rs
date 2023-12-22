@@ -23,7 +23,7 @@ pub(crate) fn test_compress<
     compress_generator: F1,
     decompress_generator: F2,
 ) -> anyhow::Result<()> {
-    let data = include_bytes!("../testfiles/sqlite3.c");
+    let data = include_bytes!("../testfiles/pg2701.txt");
     let mut buffer = vec![0; 10_000_000];
 
     // compress at once
@@ -143,7 +143,7 @@ pub(crate) fn test_decompress<D: Processor>(
     mut decompress: D,
     data: &[u8],
 ) -> crate::error::Result<()> {
-    let expected_data = include_bytes!("../testfiles/sqlite3.c");
+    let expected_data = include_bytes!("../testfiles/pg2701.txt");
     let mut output = vec![0u8; 8800000];
     let mut total_in = 0;
     let mut total_out = 0;
@@ -201,7 +201,7 @@ pub(crate) fn test_decompress<D: Processor>(
 #[cfg(feature = "flate2")]
 #[tokio::test]
 async fn test_zlib() -> crate::error::Result<()> {
-    let file = File::open("testfiles/sqlite3.c.zlib").await?;
+    let file = File::open("testfiles/pg2701.txt.zlib").await?;
     test_async_decompress(zlib::ZlibDecompress::new(), file).await?;
     Ok(())
 }
@@ -213,7 +213,7 @@ pub(crate) async fn test_async_decompress<D: Processor + Unpin, R: AsyncRead>(
 ) -> crate::error::Result<()> {
     use crate::io::AsyncProcessorReader;
 
-    let expected_data = include_bytes!("../testfiles/sqlite3.c");
+    let expected_data = include_bytes!("../testfiles/pg2701.txt");
 
     let mut output = Vec::new();
     pin!(reader);
@@ -230,7 +230,7 @@ fn test_plain() -> anyhow::Result<()> {
     test_compress(|| Ok(PlainProcessor::new()), || Ok(PlainProcessor::new()))?;
     test_decompress(
         PlainProcessor::new(),
-        include_bytes!("../testfiles/sqlite3.c"),
+        include_bytes!("../testfiles/pg2701.txt"),
     )?;
     Ok(())
 }

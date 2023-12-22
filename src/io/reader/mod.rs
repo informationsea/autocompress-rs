@@ -30,7 +30,7 @@ use std::{
 /// use autocompress::zstd::ZstdDecompress;
 ///
 /// # fn main() -> anyhow::Result<()> {
-/// let buf_reader = BufReader::new(File::open("testfiles/sqlite3.c.zst")?);
+/// let buf_reader = BufReader::new(File::open("testfiles/pg2701.txt.zst")?);
 /// let mut zstd_reader = ProcessorReader::<ZstdDecompress, _>::new(buf_reader);
 /// let mut buf = Vec::new();
 /// zstd_reader.read_to_end(&mut buf)?;
@@ -64,7 +64,7 @@ impl<P: Processor, R: BufRead> ProcessorReader<P, R> {
     /// use autocompress::zstd::ZstdDecompress;
     ///
     /// # fn main() -> anyhow::Result<()> {
-    /// let buf_reader = BufReader::new(File::open("testfiles/sqlite3.c.zst")?);
+    /// let buf_reader = BufReader::new(File::open("testfiles/pg2701.txt.zst")?);
     /// let zstd_decompress = ZstdDecompress::new()?;
     /// let mut zstd_reader = ProcessorReader::with_processor(zstd_decompress, buf_reader);
     /// let mut buf = Vec::new();
@@ -135,7 +135,7 @@ struct AsyncProcessorReaderInner<P: Processor, R: AsyncBufRead + Unpin> {
 /// # #[tokio::main]
 /// # async fn main() -> anyhow::Result<()> {
 /// # #[cfg(feature = "zstd")]
-/// let buf_reader = BufReader::new(File::open("testfiles/sqlite3.c.zst").await?);
+/// let buf_reader = BufReader::new(File::open("testfiles/pg2701.txt.zst").await?);
 /// # #[cfg(feature = "zstd")]
 /// let mut zstd_reader = AsyncProcessorReader::<ZstdDecompress, _>::new(buf_reader);
 /// # #[cfg(feature = "zstd")]

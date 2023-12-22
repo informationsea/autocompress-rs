@@ -118,9 +118,9 @@ impl<R: AsyncRead + Unpin> AsyncRead for AsyncReadProxy<R> {
 async fn test_slice_read() -> anyhow::Result<()> {
     let mut file = AsyncReadProxy::new(
         "file_reader",
-        tokio::fs::File::open("testfiles/sqlite3.c.xz").await?,
+        tokio::fs::File::open("testfiles/pg2701.txt.xz").await?,
     );
-    let original_slice = include_bytes!("../../../testfiles/sqlite3.c.xz");
+    let original_slice = include_bytes!("../../../testfiles/pg2701.txt.xz");
     let mut buf = Vec::new();
     file.read_to_end(&mut buf).await?;
     let mut out = Vec::new();
@@ -144,7 +144,7 @@ async fn test_async_reader_small_step1<P: Processor + Unpin, F: Fn() -> P>(
     processor: F,
     compressed_data: &[u8],
 ) -> anyhow::Result<()> {
-    let expected_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let expected_data = include_bytes!("../../../testfiles/pg2701.txt");
     let mut decompress_reader = AsyncSmallStepReader::new(
         AsyncProcessorReader::with_processor(processor(), &compressed_data[..]),
         101,
@@ -164,7 +164,7 @@ async fn test_async_reader_small_step2<P: Processor + Unpin, F: Fn() -> P>(
     processor: F,
     compressed_data: &[u8],
 ) -> anyhow::Result<()> {
-    let expected_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let expected_data = include_bytes!("../../../testfiles/pg2701.txt");
 
     let mut decompress_reader = AsyncProcessorReader::with_processor(
         processor(),
@@ -193,7 +193,7 @@ async fn test_async_reader<P: Processor + Unpin, F: Fn() -> P>(
         .read_to_end(&mut decompressed_data)
         .await?;
 
-    let expected_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let expected_data = include_bytes!("../../../testfiles/pg2701.txt");
     assert_eq!(decompressed_data.len(), expected_data.len());
     assert_eq!(decompressed_data, expected_data);
 
@@ -213,7 +213,7 @@ fn test_reader<P: Processor, F: Fn() -> P>(
     let mut decompressed_data = Vec::new();
     decompress_reader.read_to_end(&mut decompressed_data)?;
 
-    let expected_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let expected_data = include_bytes!("../../../testfiles/pg2701.txt");
     assert_eq!(decompressed_data.len(), expected_data.len());
     assert_eq!(decompressed_data, expected_data);
 
@@ -247,31 +247,31 @@ fn test_reader<P: Processor, F: Fn() -> P>(
 async fn test_read_gzip() -> anyhow::Result<()> {
     test_all_reader(
         || GzipDecompress::new(),
-        include_bytes!("../../../testfiles/sqlite3.c.gz"),
+        include_bytes!("../../../testfiles/pg2701.txt.gz"),
     )
     .await
     .context("standard gzip")?;
     test_all_reader(
         || GzipDecompress::new(),
-        include_bytes!("../../../testfiles/sqlite3.c.multistream.gz"),
+        include_bytes!("../../../testfiles/pg2701.txt.multistream.gz"),
     )
     .await
     .context("multistream gzip")?;
     test_all_reader(
         || GzipDecompress::new(),
-        include_bytes!("../../../testfiles/sqlite3.c.bgzip.gz"),
+        include_bytes!("../../../testfiles/pg2701.txt.bgzip.gz"),
     )
     .await
     .context("bzgip")?;
     test_all_reader(
         || GzipDecompress::new(),
-        include_bytes!("../../../testfiles/sqlite3.c.pigz.gz"),
+        include_bytes!("../../../testfiles/pg2701.txt.pigz.gz"),
     )
     .await
     .context("pigz")?;
     test_all_reader(
         || GzipDecompress::new(),
-        include_bytes!("../../../testfiles/sqlite3.c.pipe.gz"),
+        include_bytes!("../../../testfiles/pg2701.txt.pipe.gz"),
     )
     .await
     .context("pipe")?;
@@ -283,12 +283,12 @@ async fn test_read_gzip() -> anyhow::Result<()> {
 async fn test_read_xz() -> anyhow::Result<()> {
     test_all_reader(
         || XzDecompress::new(10_000_000).unwrap(),
-        include_bytes!("../../../testfiles/sqlite3.c.xz"),
+        include_bytes!("../../../testfiles/pg2701.txt.xz"),
     )
     .await?;
     test_all_reader(
         || XzDecompress::new(10_000_000).unwrap(),
-        include_bytes!("../../../testfiles/sqlite3.c.multistream.xz"),
+        include_bytes!("../../../testfiles/pg2701.txt.multistream.xz"),
     )
     .await?;
     Ok(())
@@ -299,12 +299,12 @@ async fn test_read_xz() -> anyhow::Result<()> {
 async fn test_read_zstd() -> anyhow::Result<()> {
     test_all_reader(
         || ZstdDecompress::new().unwrap(),
-        include_bytes!("../../../testfiles/sqlite3.c.zst"),
+        include_bytes!("../../../testfiles/pg2701.txt.zst"),
     )
     .await?;
     test_all_reader(
         || ZstdDecompress::new().unwrap(),
-        include_bytes!("../../../testfiles/sqlite3.c.multistream.zst"),
+        include_bytes!("../../../testfiles/pg2701.txt.multistream.zst"),
     )
     .await?;
     Ok(())
@@ -317,12 +317,12 @@ async fn test_read_bzip2() -> anyhow::Result<()> {
 
     test_all_reader(
         || Bzip2Decompress::new(),
-        include_bytes!("../../../testfiles/sqlite3.c.bz2"),
+        include_bytes!("../../../testfiles/pg2701.txt.bz2"),
     )
     .await?;
     test_all_reader(
         || Bzip2Decompress::new(),
-        include_bytes!("../../../testfiles/sqlite3.c.multistream.bz2"),
+        include_bytes!("../../../testfiles/pg2701.txt.multistream.bz2"),
     )
     .await?;
     Ok(())
@@ -331,7 +331,7 @@ async fn test_read_bzip2() -> anyhow::Result<()> {
 #[cfg(feature = "tokio")]
 #[tokio::test]
 async fn test_read_plain() -> anyhow::Result<()> {
-    let expected_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let expected_data = include_bytes!("../../../testfiles/pg2701.txt");
     test_all_reader(|| PlainProcessor::default(), expected_data).await?;
     Ok(())
 }
@@ -339,7 +339,7 @@ async fn test_read_plain() -> anyhow::Result<()> {
 #[cfg(feature = "tokio")]
 #[tokio::test]
 async fn test_read_plain_small_step1() -> anyhow::Result<()> {
-    let expected_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let expected_data = include_bytes!("../../../testfiles/pg2701.txt");
     test_async_reader_small_step1(|| PlainProcessor::default(), expected_data).await?;
     Ok(())
 }
@@ -347,7 +347,7 @@ async fn test_read_plain_small_step1() -> anyhow::Result<()> {
 #[cfg(feature = "tokio")]
 #[tokio::test]
 async fn test_read_plain_small_step2() -> anyhow::Result<()> {
-    let expected_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let expected_data = include_bytes!("../../../testfiles/pg2701.txt");
     test_async_reader_small_step2(|| PlainProcessor::default(), expected_data).await?;
     Ok(())
 }

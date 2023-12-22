@@ -92,7 +92,7 @@ fn test_writer_gzip() -> anyhow::Result<()> {
     let gzip_compressor = GzipCompress::new(Compression::default());
     let mut write_buffer = Vec::new();
     let mut writer = ProcessorWriter::with_processor(gzip_compressor, &mut write_buffer);
-    let original_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let original_data = include_bytes!("../../../testfiles/pg2701.txt");
     writer.write_all(original_data)?;
     std::mem::drop(writer);
     let mut decompress_reader = flate2::bufread::GzDecoder::new(&write_buffer[..]);
@@ -114,7 +114,7 @@ fn test_writer_gzip_small_step1() -> anyhow::Result<()> {
         ProcessorWriter::with_processor(gzip_compressor, &mut write_buffer),
         101,
     );
-    let original_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let original_data = include_bytes!("../../../testfiles/pg2701.txt");
     writer.write_all(original_data)?;
     std::mem::drop(writer);
     let mut decompress_reader = flate2::bufread::GzDecoder::new(&write_buffer[..]);
@@ -136,7 +136,7 @@ fn test_writer_gzip_small_step2() -> anyhow::Result<()> {
         gzip_compressor,
         SmallStepWriter::new(&mut write_buffer, 101),
     );
-    let original_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let original_data = include_bytes!("../../../testfiles/pg2701.txt");
     writer.write_all(original_data)?;
     std::mem::drop(writer);
     let mut decompress_reader = flate2::bufread::GzDecoder::new(&write_buffer[..]);
@@ -155,7 +155,7 @@ fn test_writer_xz() -> anyhow::Result<()> {
     let xz_compressor = XzCompress::new(6)?;
     let mut write_buffer = Vec::new();
     let mut writer = ProcessorWriter::with_processor(xz_compressor, &mut write_buffer);
-    let original_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let original_data = include_bytes!("../../../testfiles/pg2701.txt");
     writer.write_all(original_data)?;
     //writer.flush()?;
     std::mem::drop(writer);
@@ -177,7 +177,7 @@ fn test_writer_xz_with_flush() -> anyhow::Result<()> {
     let xz_compressor = XzCompress::new(6)?;
     let mut write_buffer = Vec::new();
     let mut writer = ProcessorWriter::with_processor(xz_compressor, &mut write_buffer);
-    let original_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let original_data = include_bytes!("../../../testfiles/pg2701.txt");
     writer.write_all(original_data)?;
     writer.flush()?;
     std::mem::drop(writer);
@@ -199,7 +199,7 @@ fn test_writer_zstd_with_flush() -> anyhow::Result<()> {
     let xz_compressor = ZstdCompress::new(6)?;
     let mut write_buffer = Vec::new();
     let mut writer = ProcessorWriter::with_processor(xz_compressor, &mut write_buffer);
-    let original_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let original_data = include_bytes!("../../../testfiles/pg2701.txt");
     writer.write_all(original_data)?;
     writer.flush()?;
     std::mem::drop(writer);
@@ -222,7 +222,7 @@ async fn async_test_writer_xz() -> anyhow::Result<()> {
     let xz_compressor = XzCompress::new(6)?;
     let mut write_buffer = Vec::new();
     let mut writer = AsyncProcessorWriter::with_processor(xz_compressor, &mut write_buffer);
-    let original_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let original_data = include_bytes!("../../../testfiles/pg2701.txt");
     writer.write_all(original_data).await?;
     writer.flush().await?;
     //writer.flush()?;
@@ -246,7 +246,7 @@ async fn async_test_writer_xz_with_shutdown() -> anyhow::Result<()> {
     let xz_compressor = XzCompress::new(6)?;
     let mut write_buffer = Vec::new();
     let mut writer = AsyncProcessorWriter::with_processor(xz_compressor, &mut write_buffer);
-    let original_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let original_data = include_bytes!("../../../testfiles/pg2701.txt");
     writer.write_all(original_data).await?;
     writer.shutdown().await?;
     std::mem::drop(writer);
@@ -269,7 +269,7 @@ async fn async_test_writer_gzip() -> anyhow::Result<()> {
     let gzip_compressor = GzipCompress::new(Compression::default());
     let mut write_buffer = Vec::new();
     let mut writer = AsyncProcessorWriter::with_processor(gzip_compressor, &mut write_buffer);
-    let original_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let original_data = include_bytes!("../../../testfiles/pg2701.txt");
     writer.write_all(original_data).await?;
     writer.flush().await?;
     //writer.flush()?;
@@ -293,7 +293,7 @@ async fn async_test_writer_zstd() -> anyhow::Result<()> {
     let zstd_compressor = ZstdCompress::new(6)?;
     let mut write_buffer = Vec::new();
     let mut writer = AsyncProcessorWriter::with_processor(zstd_compressor, &mut write_buffer);
-    let original_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let original_data = include_bytes!("../../../testfiles/pg2701.txt");
     writer.write_all(original_data).await?;
     writer.flush().await?;
     //writer.flush()?;
@@ -320,7 +320,7 @@ async fn async_test_writer_zstd_small_step1() -> anyhow::Result<()> {
         AsyncProcessorWriter::with_processor(zstd_compressor, &mut write_buffer),
         101,
     );
-    let original_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let original_data = include_bytes!("../../../testfiles/pg2701.txt");
     writer.write_all(original_data).await?;
     writer.flush().await?;
     //writer.flush()?;
@@ -347,7 +347,7 @@ async fn async_test_writer_zstd_small_step2() -> anyhow::Result<()> {
         zstd_compressor,
         AsyncSmallStepWriter::new(&mut write_buffer, 101),
     );
-    let original_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let original_data = include_bytes!("../../../testfiles/pg2701.txt");
     writer.write_all(original_data).await?;
     writer.flush().await?;
     //writer.flush()?;
@@ -372,7 +372,7 @@ fn test_writer_bgzip() -> anyhow::Result<()> {
     let compressor = BgzipCompress::new(::bgzip::Compression::default());
     let mut write_buffer = Vec::new();
     let mut writer = ProcessorWriter::with_processor(compressor, &mut write_buffer);
-    let original_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let original_data = include_bytes!("../../../testfiles/pg2701.txt");
     writer.write_all(original_data)?;
     writer.flush()?;
     std::mem::drop(writer);
@@ -397,7 +397,7 @@ async fn async_test_writer_bgzip() -> anyhow::Result<()> {
     let compressor = BgzipCompress::new(::bgzip::Compression::default());
     let mut write_buffer = Vec::new();
     let mut writer = AsyncProcessorWriter::with_processor(compressor, &mut write_buffer);
-    let original_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let original_data = include_bytes!("../../../testfiles/pg2701.txt");
     writer.write_all(original_data).await?;
     writer.shutdown().await?;
     //writer.flush()?;
@@ -426,7 +426,7 @@ async fn async_test_writer_bgzip_small_step1() -> anyhow::Result<()> {
         AsyncProcessorWriter::with_processor(compressor, &mut write_buffer),
         101,
     );
-    let original_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let original_data = include_bytes!("../../../testfiles/pg2701.txt");
     writer.write_all(original_data).await?;
     writer.flush().await?;
     //writer.flush()?;
@@ -455,7 +455,7 @@ async fn async_test_writer_bgzip_small_step2() -> anyhow::Result<()> {
         compressor,
         AsyncSmallStepWriter::new(&mut write_buffer, 101),
     );
-    let original_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let original_data = include_bytes!("../../../testfiles/pg2701.txt");
     writer.write_all(original_data).await?;
     writer.flush().await?;
     //writer.flush()?;
@@ -483,7 +483,7 @@ async fn async_test_writer_plain_small_step1() -> anyhow::Result<()> {
         AsyncProcessorWriter::with_processor(compressor, &mut write_buffer),
         101,
     );
-    let original_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let original_data = include_bytes!("../../../testfiles/pg2701.txt");
     writer.write_all(original_data).await?;
     writer.flush().await?;
     //writer.flush()?;
@@ -505,7 +505,7 @@ async fn async_test_writer_plain_small_step2() -> anyhow::Result<()> {
         compressor,
         AsyncSmallStepWriter::new(&mut write_buffer, 101),
     );
-    let original_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let original_data = include_bytes!("../../../testfiles/pg2701.txt");
     dbg!(original_data.len());
     writer.write_all(original_data).await?;
     writer.flush().await?;

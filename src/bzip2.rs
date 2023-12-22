@@ -22,7 +22,7 @@ pub type Bzip2CompressWriter<W> = crate::io::ProcessorWriter<Bzip2Compress, W>;
 /// #
 /// # #[tokio::main]
 /// # async fn main() -> anyhow::Result<()> {
-/// let buf_reader = BufReader::new(File::open("testfiles/sqlite3.c.bz2").await?);
+/// let buf_reader = BufReader::new(File::open("testfiles/pg2701.txt.bz2").await?);
 /// let mut bzip2_reader = AsyncBzip2DecompressReader::new(buf_reader);
 /// let mut buf = Vec::new();
 /// bzip2_reader.read_to_end(&mut buf).await?;
@@ -165,7 +165,7 @@ mod tests {
 
     #[test]
     fn test_bzip2_decompress() -> anyhow::Result<()> {
-        let data = include_bytes!("../testfiles/sqlite3.c.bz2");
+        let data = include_bytes!("../testfiles/pg2701.txt.bz2");
         let decompress = Bzip2Decompress::new();
         test_decompress(decompress, &data[..])?;
 
@@ -174,14 +174,14 @@ mod tests {
 
     #[test]
     fn test_bzip2() -> crate::error::Result<()> {
-        let data = include_bytes!("../testfiles/sqlite3.c.bz2");
+        let data = include_bytes!("../testfiles/pg2701.txt.bz2");
         test_decompress(Bzip2Decompress::new(), data)?;
         Ok(())
     }
 
     #[test]
     fn test_bzip2_multistream() -> crate::error::Result<()> {
-        let data = include_bytes!("../testfiles/sqlite3.c.multistream.bz2");
+        let data = include_bytes!("../testfiles/pg2701.txt.multistream.bz2");
         test_decompress(Bzip2Decompress::new(), data)?;
         Ok(())
     }

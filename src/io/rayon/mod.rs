@@ -152,7 +152,7 @@ fn read_thread<R: Read>(mut reader: R, mut buf: Buf, sender: Sender<(R, Buf, Res
 /// use autocompress::zstd::ZstdDecompressReader;
 ///
 /// # fn main() -> anyhow::Result<()> {
-/// let buf_reader = BufReader::new(File::open("testfiles/sqlite3.c.zst")?);
+/// let buf_reader = BufReader::new(File::open("testfiles/pg2701.txt.zst")?);
 /// let zstd_reader = ZstdDecompressReader::new(buf_reader);
 /// let mut rayon_reader = RayonReader::new(zstd_reader);
 /// let mut buf = Vec::new();

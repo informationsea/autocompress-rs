@@ -31,7 +31,7 @@ pub type XzDecompressReader<R> = crate::io::ProcessorReader<XzDecompress, R>;
 /// #
 /// # #[tokio::main]
 /// # async fn main() -> anyhow::Result<()> {
-/// let buf_reader = BufReader::new(File::open("testfiles/sqlite3.c.xz").await?);
+/// let buf_reader = BufReader::new(File::open("testfiles/pg2701.txt.xz").await?);
 /// let mut xz_reader = AsyncXzDecompressReader::new(buf_reader);
 /// let mut buf = Vec::new();
 /// xz_reader.read_to_end(&mut buf).await?;
@@ -168,7 +168,7 @@ mod tests {
 
     #[test]
     fn test_xz_decompress() -> anyhow::Result<()> {
-        let data = include_bytes!("../testfiles/sqlite3.c.xz");
+        let data = include_bytes!("../testfiles/pg2701.txt.xz");
         let decompress = XzDecompress::new(10_000_000)?;
 
         test_decompress(decompress, &data[..])?;
@@ -178,14 +178,14 @@ mod tests {
 
     #[test]
     fn test_xz() -> crate::error::Result<()> {
-        let data = include_bytes!("../testfiles/sqlite3.c.xz");
+        let data = include_bytes!("../testfiles/pg2701.txt.xz");
         test_decompress(XzDecompress::new(10_000_000)?, data)?;
         Ok(())
     }
 
     #[test]
     fn test_xz_multistream() -> crate::error::Result<()> {
-        let data = include_bytes!("../testfiles/sqlite3.c.multistream.xz");
+        let data = include_bytes!("../testfiles/pg2701.txt.multistream.xz");
         test_decompress(XzDecompress::new(10_000_000)?, data)?;
         Ok(())
     }

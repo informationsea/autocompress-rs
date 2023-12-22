@@ -20,7 +20,7 @@ use crate::{Flush, Processor, Status};
 /// use autocompress::gzip::GzipDecompressReader;
 ///
 /// # fn main() -> anyhow::Result<()> {
-/// let buf_reader = BufReader::new(File::open("testfiles/sqlite3.c.gz")?);
+/// let buf_reader = BufReader::new(File::open("testfiles/pg2701.txt.gz")?);
 /// let mut gzip_reader = GzipDecompressReader::new(buf_reader);
 /// let mut buf = Vec::new();
 /// gzip_reader.read_to_end(&mut buf)?;
@@ -57,7 +57,7 @@ pub type GzipCompressWriter<W> = crate::io::ProcessorWriter<GzipCompress, W>;
 /// #
 /// # #[tokio::main]
 /// # async fn main() -> anyhow::Result<()> {
-/// let buf_reader = BufReader::new(File::open("testfiles/sqlite3.c.gz").await?);
+/// let buf_reader = BufReader::new(File::open("testfiles/pg2701.txt.gz").await?);
 /// let mut gzip_reader = AsyncGzipDecompressReader::new(buf_reader);
 /// let mut buf = Vec::new();
 /// gzip_reader.read_to_end(&mut buf).await?;
@@ -379,7 +379,7 @@ mod test {
 
     #[test]
     fn test_gzip_decompress() -> anyhow::Result<()> {
-        let data = include_bytes!("../../testfiles/sqlite3.c.gz");
+        let data = include_bytes!("../../testfiles/pg2701.txt.gz");
         let decompress = GzipDecompress::new();
         test_decompress(decompress, &data[..])?;
 
@@ -388,28 +388,28 @@ mod test {
 
     #[test]
     fn test_gzip_pipe() -> crate::error::Result<()> {
-        let data = include_bytes!("../../testfiles/sqlite3.c.pipe.gz");
+        let data = include_bytes!("../../testfiles/pg2701.txt.pipe.gz");
         test_decompress(GzipDecompress::new(), data)?;
         Ok(())
     }
 
     #[test]
     fn test_gzip_pigz() -> crate::error::Result<()> {
-        let data = include_bytes!("../../testfiles/sqlite3.c.pigz.gz");
+        let data = include_bytes!("../../testfiles/pg2701.txt.pigz.gz");
         test_decompress(GzipDecompress::new(), data)?;
         Ok(())
     }
 
     #[test]
     fn test_gzip_multistream() -> crate::error::Result<()> {
-        let data = include_bytes!("../../testfiles/sqlite3.c.multistream.gz");
+        let data = include_bytes!("../../testfiles/pg2701.txt.multistream.gz");
         test_decompress(GzipDecompress::new(), data)?;
         Ok(())
     }
 
     #[test]
     fn test_gzip_bgzip() -> crate::error::Result<()> {
-        let data = include_bytes!("../../testfiles/sqlite3.c.bgzip.gz");
+        let data = include_bytes!("../../testfiles/pg2701.txt.bgzip.gz");
         test_decompress(GzipDecompress::new(), data)?;
         Ok(())
     }

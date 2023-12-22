@@ -241,29 +241,29 @@ mod test {
         let expected_header = GzipHeader {
             compression_method: 8,
             flag: FNAME,
-            mtime: 1684244723,
+            mtime: 1703143855,
             extra_flag: 0,
             os: GzipOs::Unix,
             xlen: 0,
             extra: None,
-            fname: Some(b"sqlite3.c\0".to_vec()),
+            fname: Some(b"pg2701.txt\0".to_vec()),
             fcomment: None,
             crc16: None,
-            header_size: 10 + 10,
+            header_size: 10 + 11,
         };
 
-        let mut reader = BufReader::new(File::open("testfiles/sqlite3.c.gz")?);
+        let mut reader = BufReader::new(File::open("testfiles/pg2701.txt.gz")?);
         let header = GzipHeader::parse(&mut reader)?;
         assert_eq!(header, expected_header);
 
-        let mut reader = BufReader::new(File::open("testfiles/sqlite3.c.pigz.gz")?);
+        let mut reader = BufReader::new(File::open("testfiles/pg2701.txt.pigz.gz")?);
         let header = GzipHeader::parse(&mut reader)?;
         assert_eq!(header, expected_header);
 
         let expected_header = GzipHeader {
             compression_method: 8,
             flag: 0,
-            mtime: 1684244723,
+            mtime: 1703143855,
             extra_flag: 0,
             os: GzipOs::Unix,
             xlen: 0,
@@ -274,7 +274,7 @@ mod test {
             header_size: 10,
         };
 
-        let mut reader = BufReader::new(File::open("testfiles/sqlite3.c.pipe.gz")?);
+        let mut reader = BufReader::new(File::open("testfiles/pg2701.txt.pipe.gz")?);
         let header = GzipHeader::parse(&mut reader)?;
         assert_eq!(header, expected_header);
 
@@ -285,14 +285,14 @@ mod test {
             extra_flag: 0,
             os: GzipOs::Unknown,
             xlen: 6,
-            extra: Some(vec![66, 67, 2, 0, 0x13, 0x4a]),
+            extra: Some(vec![66, 67, 2, 0, 0x44, 0x6b]),
             fname: None,
             fcomment: None,
             crc16: None,
             header_size: 10 + 8,
         };
 
-        let mut reader = BufReader::new(File::open("testfiles/sqlite3.c.bgzip.gz")?);
+        let mut reader = BufReader::new(File::open("testfiles/pg2701.txt.bgzip.gz")?);
         let header = GzipHeader::parse(&mut reader)?;
         assert_eq!(header, expected_header);
 
@@ -313,10 +313,10 @@ mod test {
 
     #[test]
     fn test_gzip_header_write() -> anyhow::Result<()> {
-        test_header_write_one_file("testfiles/sqlite3.c.gz")?;
-        test_header_write_one_file("testfiles/sqlite3.c.pigz.gz")?;
-        test_header_write_one_file("testfiles/sqlite3.c.bgzip.gz")?;
-        test_header_write_one_file("testfiles/sqlite3.c.pipe.gz")?;
+        test_header_write_one_file("testfiles/pg2701.txt.gz")?;
+        test_header_write_one_file("testfiles/pg2701.txt.pigz.gz")?;
+        test_header_write_one_file("testfiles/pg2701.txt.bgzip.gz")?;
+        test_header_write_one_file("testfiles/pg2701.txt.pipe.gz")?;
         Ok(())
     }
 }

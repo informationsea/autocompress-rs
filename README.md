@@ -41,7 +41,7 @@ use std::io::prelude::*;
 use autocompress::autodetect_open;
 
 fn main() -> anyhow::Result<()> {
-    let mut reader = autodetect_open("testfiles/sqlite3.c.xz")?;
+    let mut reader = autodetect_open("testfiles/pg2701.txt.xz")?;
     let mut buf = Vec::new();
     reader.read_to_end(&mut buf)?;
     Ok(())

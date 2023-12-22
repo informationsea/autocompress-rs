@@ -178,7 +178,7 @@ mod test {
 
     #[test]
     fn test_bgzip() -> anyhow::Result<()> {
-        let data = include_bytes!("../testfiles/sqlite3.c");
+        let data = include_bytes!("../testfiles/pg2701.txt");
         let mut result = std::fs::File::create("target/test.bgzip.gz")?;
         let mut buffer = vec![0; 10_000_000];
         let mut compress = BgzipCompress::new(bgzip::deflate::Compression::default());
@@ -198,7 +198,7 @@ mod test {
 
     #[test]
     fn test_bgzip_compress_small_step() -> anyhow::Result<()> {
-        let data = include_bytes!("../testfiles/sqlite3.c");
+        let data = include_bytes!("../testfiles/pg2701.txt");
         let mut compressed_buffer: Vec<u8> = vec![0u8; 10_000_000];
         let mut compress = BgzipCompress::new(bgzip::deflate::Compression::default());
 

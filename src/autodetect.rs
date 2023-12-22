@@ -169,7 +169,7 @@ impl FileFormat {
 /// use autocompress::autodetect_reader;
 ///
 /// # fn main() -> anyhow::Result<()> {
-/// let file_reader = File::open("testfiles/sqlite3.c.zst")?;
+/// let file_reader = File::open("testfiles/pg2701.txt.zst")?;
 /// let mut reader = autodetect_reader(file_reader)?;
 /// let mut buf = Vec::new();
 /// reader.read_to_end(&mut buf)?;
@@ -192,7 +192,7 @@ pub fn autodetect_reader<R: Read>(
 /// use autocompress::autodetect_buf_reader;
 ///
 /// # fn main() -> anyhow::Result<()> {
-/// let buf_reader = BufReader::new(File::open("testfiles/sqlite3.c.zst")?);
+/// let buf_reader = BufReader::new(File::open("testfiles/pg2701.txt.zst")?);
 /// let mut reader = autodetect_buf_reader(buf_reader)?;
 /// let mut buf = Vec::new();
 /// reader.read_to_end(&mut buf)?;
@@ -220,7 +220,7 @@ pub fn autodetect_buf_reader<R: BufRead>(
 /// use autocompress::autodetect_open;
 ///
 /// # fn main() -> anyhow::Result<()> {
-/// let mut reader = autodetect_open("testfiles/sqlite3.c.zst")?;
+/// let mut reader = autodetect_open("testfiles/pg2701.txt.zst")?;
 /// let mut buf = Vec::new();
 /// reader.read_to_end(&mut buf)?;
 /// # Ok(())
@@ -244,7 +244,7 @@ pub fn autodetect_open<P: AsRef<std::path::Path>>(
 /// use autocompress::autodetect_open_or_stdin;
 ///
 /// # fn main() -> anyhow::Result<()> {
-/// let mut reader = autodetect_open_or_stdin(Some("testfiles/sqlite3.c.zst"))?;
+/// let mut reader = autodetect_open_or_stdin(Some("testfiles/pg2701.txt.zst"))?;
 /// let mut buf = Vec::new();
 /// reader.read_to_end(&mut buf)?;
 /// # Ok(())
@@ -473,35 +473,35 @@ mod test {
     use tokio::io::AsyncReadExt;
 
     const FILE_LIST: &[&'static str] = &[
-        "testfiles/sqlite3.c",
+        "testfiles/pg2701.txt",
         #[cfg(feature = "flate2")]
-        "testfiles/sqlite3.c.bgzip.gz",
+        "testfiles/pg2701.txt.bgzip.gz",
         #[cfg(feature = "bzip2")]
-        "testfiles/sqlite3.c.bz2",
+        "testfiles/pg2701.txt.bz2",
         #[cfg(feature = "flate2")]
-        "testfiles/sqlite3.c.gz",
+        "testfiles/pg2701.txt.gz",
         #[cfg(feature = "xz")]
-        "testfiles/sqlite3.c.xz",
+        "testfiles/pg2701.txt.xz",
         #[cfg(feature = "zstd")]
-        "testfiles/sqlite3.c.zst",
+        "testfiles/pg2701.txt.zst",
         #[cfg(feature = "bzip2")]
-        "testfiles/sqlite3.c.multistream.bz2",
+        "testfiles/pg2701.txt.multistream.bz2",
         #[cfg(feature = "flate2")]
-        "testfiles/sqlite3.c.multistream.gz",
+        "testfiles/pg2701.txt.multistream.gz",
         #[cfg(feature = "xz")]
-        "testfiles/sqlite3.c.multistream.xz",
+        "testfiles/pg2701.txt.multistream.xz",
         #[cfg(feature = "zstd")]
-        "testfiles/sqlite3.c.multistream.zst",
+        "testfiles/pg2701.txt.multistream.zst",
         #[cfg(feature = "flate2")]
-        "testfiles/sqlite3.c.pigz.gz",
+        "testfiles/pg2701.txt.pigz.gz",
         #[cfg(feature = "flate2")]
-        "testfiles/sqlite3.c.pipe.gz",
+        "testfiles/pg2701.txt.pipe.gz",
     ];
 
     #[test]
     fn test_read() -> anyhow::Result<()> {
         let mut expected_data = Vec::new();
-        File::open("testfiles/sqlite3.c")?.read_to_end(&mut expected_data)?;
+        File::open("testfiles/pg2701.txt")?.read_to_end(&mut expected_data)?;
 
         for one_file in FILE_LIST {
             let mut read_data = Vec::new();
@@ -520,7 +520,7 @@ mod test {
         use crate::io::RayonReader;
 
         let mut expected_data = Vec::new();
-        File::open("testfiles/sqlite3.c")?.read_to_end(&mut expected_data)?;
+        File::open("testfiles/pg2701.txt")?.read_to_end(&mut expected_data)?;
 
         for one_file in FILE_LIST {
             let mut read_data = Vec::new();
@@ -537,7 +537,7 @@ mod test {
     #[tokio::test]
     async fn test_read_async() -> anyhow::Result<()> {
         let mut expected_data = Vec::new();
-        File::open("testfiles/sqlite3.c")?.read_to_end(&mut expected_data)?;
+        File::open("testfiles/pg2701.txt")?.read_to_end(&mut expected_data)?;
 
         for one_file in FILE_LIST {
             let mut read_data = Vec::new();
@@ -557,7 +557,7 @@ mod test {
     #[test]
     fn test_file() -> anyhow::Result<()> {
         let mut expected_data = Vec::new();
-        File::open("testfiles/sqlite3.c")?.read_to_end(&mut expected_data)?;
+        File::open("testfiles/pg2701.txt")?.read_to_end(&mut expected_data)?;
 
         for one_file in FILE_LIST {
             let mut read_data = Vec::new();
@@ -580,7 +580,7 @@ mod test {
         use crate::io::RayonReader;
 
         let mut expected_data = Vec::new();
-        File::open("testfiles/sqlite3.c")?.read_to_end(&mut expected_data)?;
+        File::open("testfiles/pg2701.txt")?.read_to_end(&mut expected_data)?;
 
         for one_file in FILE_LIST {
             if one_file.ends_with(".xz") {
@@ -605,7 +605,7 @@ mod test {
     #[test]
     fn test_file_write() -> anyhow::Result<()> {
         let mut expected_data = Vec::new();
-        File::open("testfiles/sqlite3.c")?.read_to_end(&mut expected_data)?;
+        File::open("testfiles/pg2701.txt")?.read_to_end(&mut expected_data)?;
 
         for one_format in &[
             FileFormat::Plain,
@@ -656,7 +656,7 @@ mod test {
         use tokio::io::AsyncWriteExt;
 
         let mut expected_data = Vec::new();
-        tokio::fs::File::open("testfiles/sqlite3.c")
+        tokio::fs::File::open("testfiles/pg2701.txt")
             .await?
             .read_to_end(&mut expected_data)
             .await?;
@@ -719,7 +719,7 @@ mod test {
         use crate::io::{RayonReader, RayonWriter};
 
         let mut expected_data = Vec::new();
-        File::open("testfiles/sqlite3.c")?.read_to_end(&mut expected_data)?;
+        File::open("testfiles/pg2701.txt")?.read_to_end(&mut expected_data)?;
 
         for one_format in &[
             #[cfg(feature = "gzip")]
@@ -768,7 +768,7 @@ mod test {
     #[cfg(feature = "tokio_fs")]
     #[tokio::test]
     async fn test_file_async() -> anyhow::Result<()> {
-        let expected_data = include_bytes!("../testfiles/sqlite3.c");
+        let expected_data = include_bytes!("../testfiles/pg2701.txt");
 
         for one_file in FILE_LIST {
             let mut read_data = Vec::new();

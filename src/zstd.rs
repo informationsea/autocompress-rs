@@ -26,7 +26,7 @@ pub type ZstdCompressWriter<W> = crate::io::ProcessorWriter<ZstdCompress, W>;
 /// #
 /// # #[tokio::main]
 /// # async fn main() -> anyhow::Result<()> {
-/// let buf_reader = BufReader::new(File::open("testfiles/sqlite3.c.zst").await?);
+/// let buf_reader = BufReader::new(File::open("testfiles/pg2701.txt.zst").await?);
 /// let mut zstd_reader = AsyncZstdDecompressReader::new(buf_reader);
 /// let mut buf = Vec::new();
 /// zstd_reader.read_to_end(&mut buf).await?;
@@ -196,7 +196,7 @@ mod tests {
 
     #[test]
     fn test_zstd_decompress() -> anyhow::Result<()> {
-        let data = include_bytes!("../testfiles/sqlite3.c.zst");
+        let data = include_bytes!("../testfiles/pg2701.txt.zst");
         let decompress = ZstdDecompress::new()?;
 
         crate::tests::test_decompress(decompress, &data[..])?;
@@ -214,8 +214,8 @@ mod tests {
 
     #[test]
     fn test_zstd_reader() -> anyhow::Result<()> {
-        let expected_data = include_bytes!("../testfiles/sqlite3.c");
-        let data = include_bytes!("../testfiles/sqlite3.c.zst");
+        let expected_data = include_bytes!("../testfiles/pg2701.txt");
+        let data = include_bytes!("../testfiles/pg2701.txt.zst");
         let mut decompressed_data = Vec::new();
         let mut reader = ZstdDecompressReader::new(&data[..]);
         reader.read_to_end(&mut decompressed_data)?;

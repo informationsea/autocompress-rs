@@ -7,11 +7,11 @@ use std::io::{BufReader, BufWriter};
 
 #[test]
 fn test_rayon_reader_into_inner() -> anyhow::Result<()> {
-    let expected_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let expected_data = include_bytes!("../../../testfiles/pg2701.txt");
 
     let mut read_buffer = vec![];
     let mut reader = RayonReader::with_thread_builder_and_capacity(
-        std::fs::File::open("testfiles/sqlite3.c").unwrap(),
+        std::fs::File::open("testfiles/pg2701.txt").unwrap(),
         RayonThreadBuilder,
         101,
     );
@@ -26,7 +26,7 @@ fn test_rayon_reader_into_inner() -> anyhow::Result<()> {
 
 #[test]
 fn test_rayon_writer_into_inner() -> anyhow::Result<()> {
-    let expected_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let expected_data = include_bytes!("../../../testfiles/pg2701.txt");
 
     let writer_buffer = vec![];
     let mut writer = RayonWriter::new(writer_buffer);
@@ -40,7 +40,7 @@ fn test_rayon_writer_into_inner() -> anyhow::Result<()> {
 
 #[test]
 pub fn test_rayon_reader() -> anyhow::Result<()> {
-    let expected_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let expected_data = include_bytes!("../../../testfiles/pg2701.txt");
     let (send, recv) = channel();
 
     const N: usize = 100;
@@ -53,7 +53,7 @@ pub fn test_rayon_reader() -> anyhow::Result<()> {
             let mut read_buffer = vec![];
             // write test
             let mut reader = RayonReader::with_thread_builder_and_capacity(
-                std::fs::File::open("testfiles/sqlite3.c").unwrap(),
+                std::fs::File::open("testfiles/pg2701.txt").unwrap(),
                 RayonThreadBuilder,
                 101,
             );
@@ -78,7 +78,7 @@ pub fn test_rayon_reader() -> anyhow::Result<()> {
 
 #[test]
 pub fn test_rayon_reader_small_step1() -> anyhow::Result<()> {
-    let expected_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let expected_data = include_bytes!("../../../testfiles/pg2701.txt");
     let (send, recv) = channel();
 
     const N: usize = 100;
@@ -92,7 +92,7 @@ pub fn test_rayon_reader_small_step1() -> anyhow::Result<()> {
             // read test
             let mut reader = RayonReader::with_thread_builder_and_capacity(
                 SmallStepReader::new(
-                    BufReader::new(std::fs::File::open("testfiles/sqlite3.c").unwrap()),
+                    BufReader::new(std::fs::File::open("testfiles/pg2701.txt").unwrap()),
                     1,
                 ),
                 RayonThreadBuilder,
@@ -119,7 +119,7 @@ pub fn test_rayon_reader_small_step1() -> anyhow::Result<()> {
 
 #[test]
 pub fn test_rayon_reader_small_step2() -> anyhow::Result<()> {
-    let expected_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let expected_data = include_bytes!("../../../testfiles/pg2701.txt");
     let (send, recv) = channel();
 
     const N: usize = 100;
@@ -133,7 +133,7 @@ pub fn test_rayon_reader_small_step2() -> anyhow::Result<()> {
             // read test
             let mut reader = SmallStepReader::new(
                 RayonReader::with_thread_builder_and_capacity(
-                    std::fs::File::open("testfiles/sqlite3.c").unwrap(),
+                    std::fs::File::open("testfiles/pg2701.txt").unwrap(),
                     RayonThreadBuilder,
                     101,
                 ),
@@ -160,7 +160,7 @@ pub fn test_rayon_reader_small_step2() -> anyhow::Result<()> {
 
 #[test]
 pub fn test_rayon_writer() -> anyhow::Result<()> {
-    let expected_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let expected_data = include_bytes!("../../../testfiles/pg2701.txt");
     let (send, recv) = channel();
 
     const N: usize = 100;
@@ -199,7 +199,7 @@ pub fn test_rayon_writer() -> anyhow::Result<()> {
 
 #[test]
 pub fn test_rayon_writer_small_step1() -> anyhow::Result<()> {
-    let expected_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let expected_data = include_bytes!("../../../testfiles/pg2701.txt");
     let (send, recv) = channel();
 
     const N: usize = 100;
@@ -239,7 +239,7 @@ pub fn test_rayon_writer_small_step1() -> anyhow::Result<()> {
 
 #[test]
 pub fn test_rayon_writer_small_step2() -> anyhow::Result<()> {
-    let expected_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let expected_data = include_bytes!("../../../testfiles/pg2701.txt");
     let (send, recv) = channel();
 
     const N: usize = 100;
@@ -283,7 +283,7 @@ fn test_rayon_parallel_writer() -> anyhow::Result<()> {
     let write_buf = vec![];
     let mut writer =
         ParallelCompressWriter::with_buffer_size(write_buf, || GzipCompress::default(), 101);
-    let expected_data = include_bytes!("../../../testfiles/sqlite3.c");
+    let expected_data = include_bytes!("../../../testfiles/pg2701.txt");
     writer.write_all(&expected_data[..])?;
     writer.flush()?;
     let inner = writer.into_inner()?;
