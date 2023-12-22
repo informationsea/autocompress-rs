@@ -76,25 +76,25 @@ jobs:
         run: ${{ matrix.config.cross && 'cross' || 'cargo' }} test --release --target ${{ matrix.config.target }} --features full
       - name: Test gzip
         if: ${{ matrix.config.test }}
-        run: ${{ matrix.config.cross && 'cross' || 'cargo' }} test --release --target ${{ matrix.config.target }} --no-default-features --features gzip
+        run: ${{ matrix.config.cross && 'cross' || 'cargo' }} test --release --target ${{ matrix.config.target }} --no-default-features --features gzip --tests
       - name: Test bgzip
         if: ${{ matrix.config.test }}
-        run: ${{ matrix.config.cross && 'cross' || 'cargo' }} test --release --target ${{ matrix.config.target }} --no-default-features --features bgzip
+        run: ${{ matrix.config.cross && 'cross' || 'cargo' }} test --release --target ${{ matrix.config.target }} --no-default-features --features bgzip --tests
       - name: Test bzip2
         if: ${{ matrix.config.test }}
-        run: ${{ matrix.config.cross && 'cross' || 'cargo' }} test --release --target ${{ matrix.config.target }} --no-default-features --features bzip2
+        run: ${{ matrix.config.cross && 'cross' || 'cargo' }} test --release --target ${{ matrix.config.target }} --no-default-features --features bzip2 --tests
       - name: Test xz
         if: ${{ matrix.config.test }}
-        run: ${{ matrix.config.cross && 'cross' || 'cargo' }} test --release --target ${{ matrix.config.target }} --no-default-features --features xz
+        run: ${{ matrix.config.cross && 'cross' || 'cargo' }} test --release --target ${{ matrix.config.target }} --no-default-features --features xz --tests
       - name: Test zstd
         if: ${{ matrix.config.test }}
-        run: ${{ matrix.config.cross && 'cross' || 'cargo' }} test --release --target ${{ matrix.config.target }} --no-default-features --features zstd
+        run: ${{ matrix.config.cross && 'cross' || 'cargo' }} test --release --target ${{ matrix.config.target }} --no-default-features --features zstd --tests
       - name: Test tokio and gzip
         if: ${{ matrix.config.test }}
-        run: ${{ matrix.config.cross && 'cross' || 'cargo' }} test --release --target ${{ matrix.config.target }} --no-default-features --features tokio --features gzip
+        run: ${{ matrix.config.cross && 'cross' || 'cargo' }} test --release --target ${{ matrix.config.target }} --no-default-features --features tokio --features gzip --tests
       - name: Test tokio_fs and gzip
         if: ${{ matrix.config.test }}
-        run: ${{ matrix.config.cross && 'cross' || 'cargo' }} test --release --target ${{ matrix.config.target }} --no-default-features --features tokio_fs --features gzip
+        run: ${{ matrix.config.cross && 'cross' || 'cargo' }} test --release --target ${{ matrix.config.target }} --no-default-features --features tokio_fs --features gzip --tests
       - name: Test rayon and gzip
         if: ${{ matrix.config.test }}
-        run: ${{ matrix.config.cross && 'cross' || 'cargo' }} test --release --target ${{ matrix.config.target }} --no-default-features --features rayon --features gzip
+        run: ${{ matrix.config.cross && 'cross' || 'cargo' }} test --release --target ${{ matrix.config.target }} --no-default-features --features rayon --features gzip --tests

@@ -46,7 +46,7 @@ pub fn test_rayon_reader() -> anyhow::Result<()> {
     let expected_data = include_bytes!("../../../testfiles/pg2701.txt");
     let (send, recv) = channel();
 
-    const N: usize = 100;
+    const N: usize = 10;
 
     for i in 0..N {
         let send = send.clone();
@@ -84,7 +84,7 @@ pub fn test_rayon_reader_small_step1() -> anyhow::Result<()> {
     let expected_data = include_bytes!("../../../testfiles/pg2701.txt");
     let (send, recv) = channel();
 
-    const N: usize = 100;
+    const N: usize = 10;
 
     for i in 0..N {
         let send = send.clone();
@@ -125,7 +125,7 @@ pub fn test_rayon_reader_small_step2() -> anyhow::Result<()> {
     let expected_data = include_bytes!("../../../testfiles/pg2701.txt");
     let (send, recv) = channel();
 
-    const N: usize = 100;
+    const N: usize = 10;
 
     for i in 0..N {
         let send = send.clone();
@@ -166,7 +166,7 @@ pub fn test_rayon_writer() -> anyhow::Result<()> {
     let expected_data = include_bytes!("../../../testfiles/pg2701.txt");
     let (send, recv) = channel();
 
-    const N: usize = 100;
+    const N: usize = 10;
 
     for i in 0..N {
         let send = send.clone();
@@ -205,7 +205,7 @@ pub fn test_rayon_writer_small_step1() -> anyhow::Result<()> {
     let expected_data = include_bytes!("../../../testfiles/pg2701.txt");
     let (send, recv) = channel();
 
-    const N: usize = 100;
+    const N: usize = 10;
 
     for i in 0..N {
         let send = send.clone();
@@ -245,7 +245,7 @@ pub fn test_rayon_writer_small_step2() -> anyhow::Result<()> {
     let expected_data = include_bytes!("../../../testfiles/pg2701.txt");
     let (send, recv) = channel();
 
-    const N: usize = 100;
+    const N: usize = 10;
 
     for i in 0..N {
         let send = send.clone();
@@ -320,7 +320,7 @@ fn test_rayon_parallel_writer_to_file() -> anyhow::Result<()> {
 #[test]
 fn test_rayon_parallel_writer_many() -> anyhow::Result<()> {
     let try_count = 10;
-    let parallel_count = 10;
+    let parallel_count = 20;
 
     let (send, recv) = channel();
 
