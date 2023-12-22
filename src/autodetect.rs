@@ -12,12 +12,12 @@ use crate::xz::{XzCompress, XzDecompress};
 #[cfg(feature = "zstd")]
 use crate::zstd::{ZstdCompress, ZstdDecompress};
 
+#[cfg(feature = "rayon")]
+use crate::io::ParallelCompressWriter;
 #[cfg(feature = "tokio")]
 use crate::{io::AsyncProcessorReader, io::AsyncProcessorWriter};
 use crate::{
-    io::ProcessorReader,
-    io::{ParallelCompressWriter, ProcessorWriter},
-    CompressionLevel, PlainProcessor, Processor,
+    io::ProcessorReader, io::ProcessorWriter, CompressionLevel, PlainProcessor, Processor,
 };
 use std::{
     fs::File,
