@@ -77,20 +77,29 @@ jobs:
       - name: Build all
         run: ${{ matrix.config.cross && 'cross' || 'cargo' }} build --release --target ${{ matrix.config.target }} --features full
       - name: Test all
+        if: ${{ matrix.config.test }}
         run: ${{ matrix.config.cross && 'cross' || 'cargo' }} test --release --target ${{ matrix.config.target }} --features full
       - name: Test gzip
+        if: ${{ matrix.config.test }}
         run: ${{ matrix.config.cross && 'cross' || 'cargo' }} test --release --target ${{ matrix.config.target }} --no-default-features --features gzip
       - name: Test bgzip
+        if: ${{ matrix.config.test }}
         run: ${{ matrix.config.cross && 'cross' || 'cargo' }} test --release --target ${{ matrix.config.target }} --no-default-features --features bgzip
       - name: Test bzip2
+        if: ${{ matrix.config.test }}
         run: ${{ matrix.config.cross && 'cross' || 'cargo' }} test --release --target ${{ matrix.config.target }} --no-default-features --features bzip2
       - name: Test xz
+        if: ${{ matrix.config.test }}
         run: ${{ matrix.config.cross && 'cross' || 'cargo' }} test --release --target ${{ matrix.config.target }} --no-default-features --features xz
       - name: Test zstd
+        if: ${{ matrix.config.test }}
         run: ${{ matrix.config.cross && 'cross' || 'cargo' }} test --release --target ${{ matrix.config.target }} --no-default-features --features zstd
       - name: Test tokio and gzip
+        if: ${{ matrix.config.test }}
         run: ${{ matrix.config.cross && 'cross' || 'cargo' }} test --release --target ${{ matrix.config.target }} --no-default-features --features tokio --features gzip
       - name: Test tokio_fs and gzip
+        if: ${{ matrix.config.test }}
         run: ${{ matrix.config.cross && 'cross' || 'cargo' }} test --release --target ${{ matrix.config.target }} --no-default-features --features tokio_fs --features gzip
       - name: Test rayon and gzip
+        if: ${{ matrix.config.test }}
         run: ${{ matrix.config.cross && 'cross' || 'cargo' }} test --release --target ${{ matrix.config.target }} --no-default-features --features rayon --features gzip
