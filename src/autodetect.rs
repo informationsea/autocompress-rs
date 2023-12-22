@@ -465,11 +465,84 @@ pub async fn autodetect_async_create_or_stdout<P: AsRef<Path>>(
     Ok(AsyncProcessorWriter::with_processor(compressor, output))
 }
 
+/// Creates a new [`ParallelCompressWriter`] with a file at the specified path and the specified compression level.
+/// The file format is auto-detected based on the file extension.
+///
+/// # Parameters
+/// * `path`: This is the path of the file where the compressed data will be written.
+/// * `compression_level`: This is the level of compression to be used.
+///
+/// # Returns
+/// A `Result` which is:
+/// * `Ok`: A new instance of [`ParallelCompressWriter`] with the specified file and compression level.
+/// * `Err`: An error occurred when creating the file or the compressor.
+///
+/// # Feature Flags
+/// This function is only available if the `rayon` feature flag is enabled.
+///
+/// # Example
+/// ```
+/// # use autocompress::CompressionLevel;
+/// # fn main() -> anyhow::Result<()> {
+/// let path = "target/doc-autodetect_parallel_create.gz";
+/// let writer = autocompress::autodetect_parallel_create(path, CompressionLevel::default())?;
+/// # Ok(())
+/// # }
+/// ```
+#[cfg(feature = "rayon")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "rayon")))]
 pub fn autodetect_parallel_create<P: AsRef<Path>>(
     path: P,
     compression_level: CompressionLevel,
 ) -> Result<ParallelCompressWriter<File, Box<dyn Processor + Send + Unpin>>> {
-    unimplemented!()
+    let file = File::create(path.as_ref())?;
+    let format = FileFormat::from_path(path.as_ref()).unwrap_or(FileFormat::Plain);
+    Ok(ParallelCompressWriter::new(file, move || {
+        format.compressor(compression_level)
+    }))
+}
+
+/// Creates a new [`ParallelCompressWriter`] with a file at the specified path or standard output and the specified compression level.
+/// The file format is auto-detected based on the file extension.
+///
+/// # Parameters
+/// * `path`: This is an `Option` that contains the path of the file where the compressed data will be written. If `None`, the compressed data will be written to standard output.
+/// * `compression_level`: This is the level of compression to be used.
+///
+/// # Returns
+/// A `Result` which is:
+/// * `Ok`: A new instance of [`ParallelCompressWriter`] with the specified file or standard output and compression level.
+/// * `Err`: An error occurred when creating the file or the compressor.
+///
+/// # Feature Flags
+/// This function is only available if the `rayon` feature flag is enabled.
+///
+/// # Example
+/// ```
+/// # use autocompress::CompressionLevel;
+/// # fn main() -> anyhow::Result<()> {
+/// let path = "target/doc-autodetect_parallel_create.gz";
+/// let writer = autocompress::autodetect_parallel_create_or_stdout(Some(path), CompressionLevel::default())?;
+/// # Ok(())
+/// # }
+/// ```
+#[cfg(feature = "rayon")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "rayon")))]
+pub fn autodetect_parallel_create_or_stdout<P: AsRef<Path>>(
+    path: Option<P>,
+    compression_level: CompressionLevel,
+) -> Result<ParallelCompressWriter<Box<dyn Write + Send>, Box<dyn Processor + Send + Unpin>>> {
+    let output: Box<dyn Write + Send> = if let Some(path) = path.as_ref() {
+        Box::new(std::fs::File::create(path.as_ref())?)
+    } else {
+        Box::new(std::io::stdout())
+    };
+    let format = path
+        .map(|x| FileFormat::from_path(x).unwrap_or(FileFormat::Plain))
+        .unwrap_or(FileFormat::Plain);
+    Ok(ParallelCompressWriter::new(output, move || {
+        format.compressor(compression_level)
+    }))
 }
 
 #[cfg(test)]
