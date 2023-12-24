@@ -60,3 +60,16 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 ```
+
+### Compress file in parallel
+
+```rust
+use std::io::prelude::*;
+use autocompress::{autodetect_parallel_create, CompressionLevel};
+
+fn main() -> anyhow::Result<()> {
+  let mut writer = autodetect_parallel_create("target/doc-index2.xz", CompressionLevel::Default)?;
+  writer.write_all(&b"Hello, world\n"[..])?;
+  Ok(())
+}
+```
