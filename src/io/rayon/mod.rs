@@ -420,3 +420,6 @@ impl<W: Write + Send + 'static, TB: ThreadBuilder> Write for RayonWriter<W, TB> 
 
 #[cfg(test)]
 mod test;
+
+#[cfg(all(feature = "additionaltest", test))]
+mod additionaltest;

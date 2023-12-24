@@ -3,8 +3,10 @@ use crate::Processor;
 use std::collections::HashMap;
 use std::io::Write;
 use std::sync::mpsc::{channel, Receiver, Sender};
+use std::time::Duration;
 
 const COMPRESSED_BUFFER_EXTEND_SIZE: usize = 1024;
+const NO_TIMEOUT_DURATION: Duration = Duration::from_millis(0);
 
 #[derive(Debug)]
 struct OrderedBuf<P: Processor> {
@@ -154,135 +156,272 @@ where
         Ok(self.writer.take().expect("writer should not be None"))
     }
 
-    fn dispatch_write_non_block(&mut self) -> Result<()> {
-        self.receive_compress_result(false)?;
-        if !self
-            .compress_result_buffer
-            .contains_key(&self.next_write_index)
-        {
-            return Ok(());
-        }
+    // fn dispatch_write_non_block(&mut self) -> Result<()> {
+    //     self.receive_compress_result(false)?;
+    //     if !self
+    //         .compress_result_buffer
+    //         .contains_key(&self.next_write_index)
+    //     {
+    //         return Ok(());
+    //     }
 
-        if self.writer.is_some() {
-            self.dispatch_write()
-        } else {
-            match self.write_result_receiver.try_recv() {
-                Ok(result) => match result {
-                    Ok((writer, mut buf)) => {
-                        self.writer = Some(writer);
-                        buf.clear();
-                        self.next_buffer.push(buf);
-                        self.dispatch_write()
-                    }
-                    Err((writer, err)) => {
-                        self.writer = Some(writer);
-                        return Err(err);
-                    }
-                },
-                Err(TryRecvError::Empty) => Ok(()),
-                Err(TryRecvError::Disconnected) => Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "write result sender is disconnected",
-                )),
+    //     if self.writer.is_some() {
+    //         self.dispatch_write()
+    //     } else {
+    //         match self.write_result_receiver.try_recv() {
+    //             Ok(result) => match result {
+    //                 Ok((writer, mut buf)) => {
+    //                     self.writer = Some(writer);
+    //                     buf.clear();
+    //                     self.next_buffer.push(buf);
+    //                     self.dispatch_write()
+    //                 }
+    //                 Err((writer, err)) => {
+    //                     self.writer = Some(writer);
+    //                     return Err(err);
+    //                 }
+    //             },
+    //             Err(TryRecvError::Empty) => Ok(()),
+    //             Err(TryRecvError::Disconnected) => Err(std::io::Error::new(
+    //                 std::io::ErrorKind::Other,
+    //                 "write result sender is disconnected",
+    //             )),
+    //         }
+    //     }
+    // }
+
+    // fn dispatch_write(&mut self) -> Result<()> {
+    //     dbg!("dispatch_write");
+
+    //     while self.writer.is_none() {
+    //         match self.write_result_receiver.try_recv() {
+    //             Ok(result) => match result {
+    //                 Ok((writer, mut buf)) => {
+    //                     self.writer = Some(writer);
+    //                     buf.clear();
+    //                     self.next_buffer.push(buf);
+    //                 }
+    //                 Err((writer, err)) => {
+    //                     self.writer = Some(writer);
+    //                     self.is_error = true;
+    //                     return Err(err);
+    //                 }
+    //             },
+    //             Err(TryRecvError::Empty) => {
+    //                 dbg!(rayon::yield_now());
+    //                 self.receive_compress_result(false)?;
+    //                 std::thread::sleep(std::time::Duration::from_millis(10));
+    //             }
+    //             Err(TryRecvError::Disconnected) => {
+    //                 return Err(std::io::Error::new(
+    //                     std::io::ErrorKind::Other,
+    //                     "write result sender is disconnected",
+    //                 ))
+    //             }
+    //         }
+    //     }
+
+    //     dbg!("writer received");
+
+    //     if self.writer.is_none() {
+    //         match receive_or_yield(&self.write_result_receiver).map_err(recv_error_to_io_error)? {
+    //             Ok((writer, mut buf)) => {
+    //                 self.writer = Some(writer);
+    //                 buf.clear();
+    //                 self.next_buffer.push(buf);
+    //             }
+    //             Err((writer, err)) => {
+    //                 self.writer = Some(writer);
+    //                 return Err(err);
+    //             }
+    //         }
+    //     }
+
+    //     if let Some(mut writer) = self.writer.take() {
+    //         while !self
+    //             .compress_result_buffer
+    //             .contains_key(&self.next_write_index)
+    //         {
+    //             let buf = receive_or_yield(&self.compress_result_receiver)
+    //                 .map_err(recv_error_to_io_error)?;
+    //             let buf = match buf {
+    //                 Ok(buf) => buf,
+    //                 Err((buf, err)) => {
+    //                     self.is_error = true;
+    //                     self.next_buffer.push(buf);
+    //                     return Err(err.into());
+    //                 }
+    //             };
+    //             self.compress_result_buffer.insert(buf.index, buf);
+    //         }
+    //         let buf = self
+    //             .compress_result_buffer
+    //             .remove(&self.next_write_index)
+    //             .expect("compress result buffer should contain next write index");
+    //         self.next_write_index += 1;
+    //         let sender = self.write_result_sender.clone();
+    //         rayon::spawn_fifo(move || {
+    //             dbg!("spawn write", buf.index, buf.compressed.len());
+    //             //eprintln!("spawn write {}", buf.index);
+    //             match writer.write_all(buf.compressed.as_ref()) {
+    //                 Ok(()) => {
+    //                     sender
+    //                         .send(Ok((writer, buf)))
+    //                         .expect("write result sender should not be closed (1)");
+    //                 }
+    //                 Err(e) => {
+    //                     sender
+    //                         .send(Err((writer, e)))
+    //                         .expect("write result sender should not be closed (2)");
+    //                 }
+    //             }
+    //         });
+    //     } else {
+    //         unreachable!("writer should not be None");
+    //     }
+
+    //     Ok(())
+    // }
+
+    fn dispatch_write_with_writer(&mut self, mut writer: W, buf: OrderedBuf<P>) {
+        self.next_write_index += 1;
+        let sender = self.write_result_sender.clone();
+        // eprintln!(
+        //     "spawn write {} / {} / {} / {}",
+        //     buf.index,
+        //     buf.compressed.len(),
+        //     self.next_compress_index,
+        //     self.next_write_index
+        // );
+        rayon::spawn_fifo(move || {
+            //dbg!("spawn write", buf.index, buf.compressed.len());
+
+            match writer.write_all(buf.compressed.as_ref()) {
+                Ok(()) => {
+                    sender
+                        .send(Ok((writer, buf)))
+                        .expect("write result sender should not be closed (1)");
+                }
+                Err(e) => {
+                    sender
+                        .send(Err((writer, e)))
+                        .expect("write result sender should not be closed (2)");
+                }
             }
-        }
+        });
     }
 
-    fn dispatch_write(&mut self) -> Result<()> {
-        //dbg!("dispatch_write");
-        if self.writer.is_none() {
-            match receive_or_yield(&self.write_result_receiver).map_err(recv_error_to_io_error)? {
-                Ok((writer, mut buf)) => {
-                    self.writer = Some(writer);
-                    buf.clear();
-                    self.next_buffer.push(buf);
-                }
-                Err((writer, err)) => {
-                    self.writer = Some(writer);
-                    return Err(err);
-                }
-            }
-        }
-
-        if let Some(mut writer) = self.writer.take() {
-            while !self
-                .compress_result_buffer
-                .contains_key(&self.next_write_index)
-            {
-                let buf = receive_or_yield(&self.compress_result_receiver)
-                    .map_err(recv_error_to_io_error)?;
-                let buf = match buf {
-                    Ok(buf) => buf,
+    fn receive_compress_or_write_result(
+        &mut self,
+        wait_buffer: bool,
+        wait_writer: bool,
+    ) -> Result<()> {
+        loop {
+            rayon::yield_now();
+            match self.compress_result_receiver.recv_timeout(
+                if wait_buffer && self.next_buffer.is_empty() && self.writer.is_some() {
+                    TIMEOUT_DURATION
+                } else {
+                    NO_TIMEOUT_DURATION
+                },
+            ) {
+                Ok(result) => match result {
+                    Ok(buf) => {
+                        self.compress_result_buffer.insert(buf.index, buf);
+                    }
                     Err((buf, err)) => {
                         self.is_error = true;
                         self.next_buffer.push(buf);
                         return Err(err.into());
                     }
-                };
-                self.compress_result_buffer.insert(buf.index, buf);
+                },
+                Err(RecvTimeoutError::Timeout) => {}
+                Err(RecvTimeoutError::Disconnected) => {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        "compress result sender is disconnected",
+                    ))
+                }
             }
-            let buf = self
-                .compress_result_buffer
-                .remove(&self.next_write_index)
-                .expect("compress result buffer should contain next write index");
-            self.next_write_index += 1;
-            let sender = self.write_result_sender.clone();
-            rayon::spawn_fifo(move || {
-                //dbg!("spawn write", buf.index, buf.compressed.len());
-                //eprintln!("spawn write {}", buf.index);
-                match writer.write_all(buf.compressed.as_ref()) {
-                    Ok(()) => {
-                        sender
-                            .send(Ok((writer, buf)))
-                            .expect("write result sender should not be closed (1)");
-                    }
-                    Err(e) => {
-                        sender
-                            .send(Err((writer, e)))
-                            .expect("write result sender should not be closed (2)");
+
+            if self.writer.is_none() {
+                match self.write_result_receiver.recv_timeout(
+                    if wait_writer || (wait_buffer && self.next_buffer.is_empty()) {
+                        TIMEOUT_DURATION
+                    } else {
+                        NO_TIMEOUT_DURATION
+                    },
+                ) {
+                    Ok(result) => match result {
+                        Ok((writer, mut buf)) => {
+                            self.writer = Some(writer);
+                            buf.clear();
+                            self.next_buffer.push(buf);
+                        }
+                        Err((writer, err)) => {
+                            self.writer = Some(writer);
+                            self.is_error = true;
+                            return Err(err);
+                        }
+                    },
+                    Err(RecvTimeoutError::Timeout) => {}
+                    Err(RecvTimeoutError::Disconnected) => {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            "write result sender is disconnected",
+                        ))
                     }
                 }
-            });
-        } else {
-            unreachable!("writer should not be None");
-        }
+            }
 
-        Ok(())
-    }
+            if let Some(buf) = self.compress_result_buffer.remove(&self.next_write_index) {
+                if let Some(writer) = self.writer.take() {
+                    self.dispatch_write_with_writer(writer, buf);
+                } else {
+                    self.compress_result_buffer.insert(buf.index, buf);
+                }
+            }
 
-    fn receive_compress_result(&mut self, block: bool) -> Result<()> {
-        //dbg!("receive_compress_result");
-        if block {
-            let buf = match receive_or_yield(&self.compress_result_receiver)
-                .map_err(recv_error_to_io_error)?
+            if (!wait_buffer || !self.next_buffer.is_empty())
+                && (!wait_writer || self.writer.is_some())
             {
-                Ok(buf) => buf,
-                Err((buf, err)) => {
-                    self.is_error = true;
-                    self.next_buffer.push(buf);
-                    return Err(err.into());
-                }
-            };
-            self.compress_result_buffer.insert(buf.index, buf);
+                return Ok(());
+            }
         }
-        while let Ok(buf) = self.compress_result_receiver.try_recv() {
-            let buf = match buf {
-                Ok(buf) => buf,
-                Err((buf, err)) => {
-                    self.is_error = true;
-                    self.next_buffer.push(buf);
-                    return Err(err.into());
-                }
-            };
-            self.compress_result_buffer.insert(buf.index, buf);
-        }
-        Ok(())
     }
+
+    // fn receive_compress_result(&mut self, block: bool) -> Result<()> {
+    //     //dbg!("receive_compress_result");
+    //     if block {
+    //         let buf = match receive_or_yield(&self.compress_result_receiver)
+    //             .map_err(recv_error_to_io_error)?
+    //         {
+    //             Ok(buf) => buf,
+    //             Err((buf, err)) => {
+    //                 self.is_error = true;
+    //                 self.next_buffer.push(buf);
+    //                 return Err(err.into());
+    //             }
+    //         };
+    //         self.compress_result_buffer.insert(buf.index, buf);
+    //     }
+    //     while let Ok(buf) = self.compress_result_receiver.try_recv() {
+    //         let buf = match buf {
+    //             Ok(buf) => buf,
+    //             Err((buf, err)) => {
+    //                 self.is_error = true;
+    //                 self.next_buffer.push(buf);
+    //                 return Err(err.into());
+    //             }
+    //         };
+    //         self.compress_result_buffer.insert(buf.index, buf);
+    //     }
+    //     Ok(())
+    // }
 
     fn dispatch_compress(&mut self) -> Result<()> {
         while self.next_buffer.is_empty() {
-            self.receive_compress_result(true)?;
-            self.dispatch_write()?;
+            self.receive_compress_or_write_result(true, false)?;
         }
         let mut new_buf = self.next_buffer.pop().unwrap();
         std::mem::swap(&mut new_buf, &mut self.current_buffer);
@@ -340,8 +479,7 @@ where
             ));
         }
         self.is_flushed = false;
-        self.receive_compress_result(false)?;
-        self.dispatch_write_non_block()?;
+        self.receive_compress_or_write_result(false, false)?;
         let mut wrote_len = 0;
         while !buf.is_empty() {
             let write_len = buf
@@ -368,13 +506,7 @@ where
             self.dispatch_compress()?;
         }
         while self.next_compress_index != self.next_write_index {
-            while !self
-                .compress_result_buffer
-                .contains_key(&self.next_write_index)
-            {
-                self.receive_compress_result(true)?;
-            }
-            self.dispatch_write()?;
+            self.receive_compress_or_write_result(false, true)?;
         }
         while self.writer.is_none() {
             match receive_or_yield(&self.write_result_receiver).map_err(recv_error_to_io_error)? {

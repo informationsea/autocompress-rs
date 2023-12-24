@@ -2,14 +2,16 @@
 
 set -xeu -o pipefail
 
-cargo test
+cargo test --features "additionaltest"
 # cargo test --no-default-features
-cargo test --no-default-features --features "gzip"
-cargo test --no-default-features --features "bgzip"
-cargo test --no-default-features --features "bzip2"
-cargo test --no-default-features --features "xz"
-cargo test --no-default-features --features "zstd"
-cargo test --no-default-features --features "tokio" --features "xz"
-cargo test --no-default-features --features "tokio_fs" --features "zstd"
-cargo test --no-default-features --features "tokio_fs" --features "gzip"
+cargo test --no-default-features --features "gzip" --tests
+cargo test --no-default-features --features "bgzip" --tests
+cargo test --no-default-features --features "bzip2" --tests
+cargo test --no-default-features --features "xz" --tests
+cargo test --no-default-features --features "zstd" --tests
+cargo test --no-default-features --features "tokio" --features "xz" --tests
+cargo test --no-default-features --features "tokio_fs" --features "zstd" --tests
+cargo test --no-default-features --features "tokio_fs" --features "gzip" --tests
+cargo test --no-default-features --features "rayon" --features "gzip" --tests
+cargo test --no-default-features --features "rayon" --features "bzip2" --tests
 

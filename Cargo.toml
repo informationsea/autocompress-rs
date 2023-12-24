@@ -25,6 +25,7 @@ zstd = ["dep:zstd"]
 tokio_fs = ["tokio/fs", "tokio"]
 tokio = ["dep:tokio"]
 rayon = ["dep:rayon"]
+additionaltest = []
 
 gzip_rust_backend = ["flate2/rust_backend", "flate2"]
 zlib = ["flate2/zlib", "dep:flate2"]
