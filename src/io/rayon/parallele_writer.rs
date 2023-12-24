@@ -318,29 +318,31 @@ where
     ) -> Result<()> {
         loop {
             rayon::yield_now();
-            match self.compress_result_receiver.recv_timeout(
-                if wait_buffer && self.next_buffer.is_empty() && self.writer.is_some() {
-                    TIMEOUT_DURATION
-                } else {
-                    NO_TIMEOUT_DURATION
-                },
-            ) {
-                Ok(result) => match result {
-                    Ok(buf) => {
-                        self.compress_result_buffer.insert(buf.index, buf);
+            if self.next_compress_index != self.next_write_index {
+                match self.compress_result_receiver.recv_timeout(
+                    if wait_buffer && self.next_buffer.is_empty() && self.writer.is_some() {
+                        TIMEOUT_DURATION
+                    } else {
+                        NO_TIMEOUT_DURATION
+                    },
+                ) {
+                    Ok(result) => match result {
+                        Ok(buf) => {
+                            self.compress_result_buffer.insert(buf.index, buf);
+                        }
+                        Err((buf, err)) => {
+                            self.is_error = true;
+                            self.next_buffer.push(buf);
+                            return Err(err.into());
+                        }
+                    },
+                    Err(RecvTimeoutError::Timeout) => {}
+                    Err(RecvTimeoutError::Disconnected) => {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            "compress result sender is disconnected",
+                        ))
                     }
-                    Err((buf, err)) => {
-                        self.is_error = true;
-                        self.next_buffer.push(buf);
-                        return Err(err.into());
-                    }
-                },
-                Err(RecvTimeoutError::Timeout) => {}
-                Err(RecvTimeoutError::Disconnected) => {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        "compress result sender is disconnected",
-                    ))
                 }
             }
 
