@@ -27,7 +27,7 @@ pub type BgzipCompressWriter<R> = crate::io::ProcessorWriter<BgzipCompress, R>;
 /// # }
 /// ```
 #[cfg(feature = "tokio")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "tokio")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
 pub type AsyncBgzipCompressWriter<W> = crate::io::AsyncProcessorWriter<BgzipCompress, W>;
 
 pub struct BgzipCompress {

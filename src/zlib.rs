@@ -11,12 +11,12 @@ pub type ZlibDecompressReader<R> = crate::io::ProcessorReader<ZlibDecompress, R>
 pub type ZlibCompressWriter<W> = crate::io::ProcessorWriter<ZlibCompress, W>;
 
 #[cfg(feature = "tokio")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "tokio")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
 /// `AsyncZlibDecompressReader` is a struct that allows decompression of data using the zlib format.
 pub type AsyncZlibDecompressReader<R> = crate::io::AsyncProcessorReader<ZlibDecompress, R>;
 
 #[cfg(feature = "tokio")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "tokio")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
 /// `AsyncZlibCompressWriter` is a struct that allows compression of data using the zlib format.
 pub type AsyncZlibCompressWriter<W> = crate::io::AsyncProcessorWriter<ZlibCompress, W>;
 

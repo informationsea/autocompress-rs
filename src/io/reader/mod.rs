@@ -146,7 +146,7 @@ struct AsyncProcessorReaderInner<P: Processor, R: AsyncBufRead + Unpin> {
 /// # }
 /// ```
 #[cfg(feature = "tokio")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "tokio")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
 pub struct AsyncProcessorReader<P: Processor, R: AsyncBufRead + Unpin> {
     inner: AsyncProcessorReaderInner<P, R>,
 }

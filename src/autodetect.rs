@@ -264,7 +264,7 @@ pub fn autodetect_open_or_stdin<P: AsRef<Path>>(
 }
 
 #[cfg(feature = "tokio")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "tokio")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
 /// Automatically select suitable decoder from magic number from [`AsyncBufRead`].
 pub async fn autodetect_async_buf_reader<R: AsyncBufRead + Unpin>(
     mut reader: R,
@@ -278,7 +278,7 @@ pub async fn autodetect_async_buf_reader<R: AsyncBufRead + Unpin>(
 }
 
 #[cfg(feature = "tokio_fs")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "tokio_fs")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "tokio_fs")))]
 /// Open a file and automatically select a suitable decoder from magic number.
 pub async fn autodetect_async_open<P: AsRef<std::path::Path>>(
     path: P,
@@ -290,7 +290,7 @@ pub async fn autodetect_async_open<P: AsRef<std::path::Path>>(
 }
 
 #[cfg(feature = "tokio_fs")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "tokio_fs")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "tokio_fs")))]
 /// Open a file or standard input, and automatically select suitable decoder from magic number.
 ///
 /// If `path` is `None`, standard input is used.
@@ -338,7 +338,7 @@ pub fn autodetect_create<P: AsRef<Path>>(
 }
 
 #[cfg(feature = "bgzip")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "bgzip")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "bgzip")))]
 /// Create a file and automatically select a suitable encoder from file extension.
 ///
 /// This function prefers BGZip format to gzip formats. If file extension is `.gz`, BGZip format is used.
@@ -383,7 +383,7 @@ pub fn autodetect_create_or_stdout<P: AsRef<Path>>(
 }
 
 #[cfg(feature = "bgzip")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "bgzip")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "bgzip")))]
 /// Create a file or open standard input, and automatically select a suitable encoder from file extension.
 ///
 /// This function prefers BGZip format to gzip formats. If file extension is `.gz`, BGZip format is used.
@@ -421,7 +421,7 @@ pub fn autodetect_create_or_stdout_prefer_bgzip<P: AsRef<Path>>(
 }
 
 #[cfg(feature = "tokio_fs")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "tokio_fs")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "tokio_fs")))]
 /// Create a file, and automatically select a suitable encoder from file extension, async version.
 pub async fn autodetect_async_create<P: AsRef<Path>>(
     path: P,
@@ -439,7 +439,7 @@ pub async fn autodetect_async_create<P: AsRef<Path>>(
 }
 
 #[cfg(feature = "tokio_fs")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "tokio_fs")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "tokio_fs")))]
 /// Create a file or open standard input, and automatically select a suitable encoder from file extension, async version.
 pub async fn autodetect_async_create_or_stdout<P: AsRef<Path>>(
     path: Option<P>,
@@ -490,7 +490,7 @@ pub async fn autodetect_async_create_or_stdout<P: AsRef<Path>>(
 /// # }
 /// ```
 #[cfg(feature = "rayon")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "rayon")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "rayon")))]
 pub fn autodetect_parallel_create<P: AsRef<Path>>(
     path: P,
     compression_level: CompressionLevel,
@@ -527,7 +527,7 @@ pub fn autodetect_parallel_create<P: AsRef<Path>>(
 /// # }
 /// ```
 #[cfg(feature = "rayon")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "rayon")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "rayon")))]
 pub fn autodetect_parallel_create_or_stdout<P: AsRef<Path>>(
     path: Option<P>,
     compression_level: CompressionLevel,

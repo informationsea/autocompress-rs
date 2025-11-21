@@ -205,7 +205,7 @@ struct AsyncProcessorWriterInner<P: Processor, W: AsyncWrite> {
 }
 
 #[cfg(feature = "tokio")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "tokio")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
 /// This struct that allows asynchronous writing of data processed by a [`Processor`] to an [`AsyncWrite`].
 ///
 /// # Type Parameters

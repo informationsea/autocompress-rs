@@ -1,4 +1,4 @@
-#![cfg_attr(doc_cfg, feature(doc_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 //! # autocompress
 //!
 //! A library for reading and writing compressed files with async support and automatic format detection.
@@ -67,25 +67,25 @@
 //! ```
 mod autodetect;
 #[cfg(feature = "bgzip")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "bgzip")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "bgzip")))]
 pub mod bgzip;
 #[cfg(feature = "bzip2")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "bzip2")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "bzip2")))]
 pub mod bzip2;
 mod error;
 #[cfg(feature = "flate2")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "gzip")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "gzip")))]
 pub mod gzip;
 #[cfg(feature = "xz")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "xz")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "xz")))]
 /// XZ format support
 pub mod xz;
 #[cfg(feature = "flate2")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "gzip")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "gzip")))]
 /// Zlib format support
 pub mod zlib;
 #[cfg(feature = "zstd")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "zstd")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "zstd")))]
 pub mod zstd;
 
 /// Reader and Writer implementations for [`Processor`]
@@ -283,7 +283,7 @@ impl CompressionLevel {
         Self::Highest
     }
 
-    #[cfg_attr(doc_cfg, doc(cfg(feature = "gzip")))]
+    #[cfg_attr(docsrs, doc(cfg(feature = "gzip")))]
     #[cfg(feature = "flate2")]
     pub fn flate2(self) -> flate2::Compression {
         match self {
@@ -295,7 +295,7 @@ impl CompressionLevel {
         }
     }
 
-    #[cfg_attr(doc_cfg, doc(cfg(feature = "bgzip")))]
+    #[cfg_attr(docsrs, doc(cfg(feature = "bgzip")))]
     #[cfg(feature = "bgzip")]
     pub fn bgzip(self) -> ::bgzip::Compression {
         match self {
@@ -307,7 +307,7 @@ impl CompressionLevel {
         }
     }
 
-    #[cfg_attr(doc_cfg, doc(cfg(feature = "bzip2")))]
+    #[cfg_attr(docsrs, doc(cfg(feature = "bzip2")))]
     #[cfg(feature = "bzip2")]
     pub fn bzip2(self) -> ::bzip2::Compression {
         match self {
@@ -319,7 +319,7 @@ impl CompressionLevel {
         }
     }
 
-    #[cfg_attr(doc_cfg, doc(cfg(feature = "xz")))]
+    #[cfg_attr(docsrs, doc(cfg(feature = "xz")))]
     #[cfg(feature = "xz")]
     pub fn xz(self) -> u32 {
         match self {
@@ -331,7 +331,7 @@ impl CompressionLevel {
         }
     }
 
-    #[cfg_attr(doc_cfg, doc(cfg(feature = "zstd")))]
+    #[cfg_attr(docsrs, doc(cfg(feature = "zstd")))]
     #[cfg(feature = "zstd")]
     pub fn zstd(self) -> i32 {
         match self {

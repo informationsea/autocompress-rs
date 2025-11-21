@@ -39,7 +39,7 @@ pub type XzDecompressReader<R> = crate::io::ProcessorReader<XzDecompress, R>;
 /// # }
 /// ```
 #[cfg(feature = "tokio")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "tokio")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
 pub type AsyncXzDecompressReader<R> = crate::io::AsyncProcessorReader<XzDecompress, R>;
 
 /// `AsyncXzCompressWriter` is a struct that allows compression of data using the Xz format.
@@ -60,7 +60,7 @@ pub type AsyncXzDecompressReader<R> = crate::io::AsyncProcessorReader<XzDecompre
 /// # }
 /// ```
 #[cfg(feature = "tokio")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "tokio")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
 pub type AsyncXzCompressWriter<W> = crate::io::AsyncProcessorWriter<XzCompress, W>;
 
 /// XZ compression processor

@@ -65,7 +65,7 @@ pub type GzipCompressWriter<W> = crate::io::ProcessorWriter<GzipCompress, W>;
 /// # }
 /// ```
 #[cfg(feature = "tokio")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "tokio")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
 pub type AsyncGzipDecompressReader<R> = crate::io::AsyncProcessorReader<GzipDecompress, R>;
 
 /// `AsyncGzipCompressWriter` is a struct that allows compression of data using the GZIP format.
@@ -86,7 +86,7 @@ pub type AsyncGzipDecompressReader<R> = crate::io::AsyncProcessorReader<GzipDeco
 /// # }
 /// ```
 #[cfg(feature = "tokio")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "tokio")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
 pub type AsyncGzipCompressWriter<W> = crate::io::AsyncProcessorWriter<GzipCompress, W>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

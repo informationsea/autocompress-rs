@@ -30,7 +30,7 @@ pub type Bzip2CompressWriter<W> = crate::io::ProcessorWriter<Bzip2Compress, W>;
 /// # }
 /// ```
 #[cfg(feature = "tokio")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "tokio")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
 pub type AsyncBzip2DecompressReader<R> = crate::io::AsyncProcessorReader<Bzip2Decompress, R>;
 
 /// `AsyncBzip2CompressWriter` is a struct that allows compression of data using the BZip2 format.
@@ -51,7 +51,7 @@ pub type AsyncBzip2DecompressReader<R> = crate::io::AsyncProcessorReader<Bzip2De
 /// # }
 /// ```
 #[cfg(feature = "tokio")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "tokio")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
 pub type AsyncBzip2CompressWriter<W> = crate::io::AsyncProcessorWriter<Bzip2Compress, W>;
 
 /// Bzip2 compression processor

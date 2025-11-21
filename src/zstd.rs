@@ -34,7 +34,7 @@ pub type ZstdCompressWriter<W> = crate::io::ProcessorWriter<ZstdCompress, W>;
 /// # }
 /// ```
 #[cfg(feature = "tokio")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "tokio")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
 pub type AsyncZstdDecompressReader<R> = crate::io::AsyncProcessorReader<ZstdDecompress, R>;
 
 /// `AsyncZstdCompressWriter` is a struct that allows compression of data using the zstd format.
@@ -55,7 +55,7 @@ pub type AsyncZstdDecompressReader<R> = crate::io::AsyncProcessorReader<ZstdDeco
 /// # }
 /// ```
 #[cfg(feature = "tokio")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "tokio")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
 pub type AsyncZstdCompressWriter<W> = crate::io::AsyncProcessorWriter<ZstdCompress, W>;
 
 /// Zstandard compression processor
